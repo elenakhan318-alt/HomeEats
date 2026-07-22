@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import 'add_today_meal_screen.dart';
+import 'cook_orders_screen.dart';
 
 class CookDashboardScreen extends StatelessWidget {
   const CookDashboardScreen({super.key});
@@ -79,7 +80,18 @@ class CookDashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.large),
               _buildSectionTitle('Incoming Orders'),
               const SizedBox(height: AppSpacing.regular),
-              _buildOrderCard(),
+            InkWell(
+  borderRadius: BorderRadius.circular(AppRadius.card),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CookOrdersScreen(),
+      ),
+    );
+  },
+  child: _buildOrderCard(),
+),
             ],
           ),
         ),
@@ -488,49 +500,186 @@ class CookDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOrderCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.regular),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: const Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: AppColors.primaryLight,
-            child: Icon(
-              Icons.shopping_bag_outlined,
-              color: AppColors.primary,
-            ),
-          ),
-          SizedBox(width: AppSpacing.regular),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'No incoming orders yet',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'New customer orders will appear here.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+Widget _buildOrderCard() {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return const SizedBox.shrink();
   }
+
+  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance
+        .collection('orders')
+        .where('cookIds', arrayContains: user.uid)
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      if (snapshot.hasError) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: const Text(
+            'Unable to load orders.',
+          ),
+        );
+      }
+
+      final orders = snapshot.data?.docs ?? [];
+
+      if (orders.isEmpty) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: const Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: AppColors.primaryLight,
+                child: Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(width: AppSpacing.regular),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'No incoming orders yet',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'New customer orders will appear here.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      orders.sort((a, b) {
+        final aTime = a.data()['createdAt'] as Timestamp?;
+        final bTime = b.data()['createdAt'] as Timestamp?;
+
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+
+        return bTime.compareTo(aTime);
+      });
+
+      final order = orders.first.data();
+
+      final customerName =
+          order['customerName']?.toString() ?? 'Customer';
+
+      final status =
+          order['status']?.toString() ?? 'Pending';
+
+      final total =
+          (order['total'] as num?)?.toDouble() ?? 0;
+
+      final items = order['items'] as List? ?? [];
+
+      String mealText = '';
+
+      if (items.isNotEmpty && items.first is Map) {
+        final first = items.first as Map;
+
+        mealText =
+            '${first['quantity']} × ${first['name']}';
+      }
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              backgroundColor: AppColors.primaryLight,
+              child: Icon(
+                Icons.shopping_bag_outlined,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.regular),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    customerName,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    mealText,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    status.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '£${total.toStringAsFixed(2)}',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 }

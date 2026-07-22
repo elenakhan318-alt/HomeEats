@@ -47,7 +47,7 @@ class CookOrdersScreen extends StatelessWidget {
                   );
                 }
 
-                final orders = snapshot.data?.docs ?? [];
+                final orders = snapshot.data?.docs.toList() ?? [];
 
                 orders.sort((first, second) {
                   final firstCreatedAt =
@@ -189,6 +189,7 @@ class CookOrdersScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.regular),
+
           for (final item in items)
             if (item is Map)
               Padding(
@@ -202,7 +203,9 @@ class CookOrdersScreen extends StatelessWidget {
                   ),
                 ),
               ),
+
           const SizedBox(height: AppSpacing.small),
+
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 10,
@@ -221,6 +224,7 @@ class CookOrdersScreen extends StatelessWidget {
               ),
             ),
           ),
+
           if (status == 'pending') ...[
             const SizedBox(height: AppSpacing.regular),
             Row(
@@ -251,6 +255,57 @@ class CookOrdersScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+
+          if (status == 'accepted') ...[
+            const SizedBox(height: AppSpacing.regular),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  _updateStatus(
+                    context: context,
+                    orderId: orderId,
+                    status: 'preparing',
+                  );
+                },
+                child: const Text('Start Preparing'),
+              ),
+            ),
+          ],
+
+          if (status == 'preparing') ...[
+            const SizedBox(height: AppSpacing.regular),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  _updateStatus(
+                    context: context,
+                    orderId: orderId,
+                    status: 'ready',
+                  );
+                },
+                child: const Text('Mark Ready'),
+              ),
+            ),
+          ],
+
+          if (status == 'ready') ...[
+            const SizedBox(height: AppSpacing.regular),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  _updateStatus(
+                    context: context,
+                    orderId: orderId,
+                    status: 'completed',
+                  );
+                },
+                child: const Text('Complete Order'),
+              ),
             ),
           ],
         ],

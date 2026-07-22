@@ -3,30 +3,11 @@ import 'package:flutter/foundation.dart';
 class BasketData extends ChangeNotifier {
   final List<Map<String, dynamic>> _basketItems = [];
 
-  List<Map<String, dynamic>> get basketItems {
-    return List.unmodifiable(_basketItems);
-  }
-
-  int get itemCount {
-    return _basketItems.fold<int>(
-      0,
-      (total, item) => total + (item['quantity'] as int),
-    );
-  }
-
-  double get totalPrice {
-    return _basketItems.fold<double>(
-      0,
-      (total, item) {
-        final double price = item['priceValue'] as double;
-        final int quantity = item['quantity'] as int;
-
-        return total + (price * quantity);
-      },
-    );
-  }
+  List<Map<String, dynamic>> get basketItems => _basketItems;
 
   void addItem({
+    required String mealId,
+    required String cookId,
     required String name,
     required String cook,
     required String price,
@@ -35,7 +16,7 @@ class BasketData extends ChangeNotifier {
     int quantity = 1,
   }) {
     final int existingIndex = _basketItems.indexWhere(
-      (item) => item['name'] == name,
+      (item) => item['mealId'] == mealId,
     );
 
     final double priceValue =
@@ -43,12 +24,14 @@ class BasketData extends ChangeNotifier {
 
     if (existingIndex >= 0) {
       final int currentQuantity =
-          _basketItems[existingIndex]['quantity'] as int;
+          _basketItems[existingIndex]['quantity'] as int? ?? 1;
 
       _basketItems[existingIndex]['quantity'] =
           currentQuantity + quantity;
     } else {
       _basketItems.add({
+        'mealId': mealId,
+        'cookId': cookId,
         'name': name,
         'cook': cook,
         'price': price,
@@ -72,7 +55,7 @@ class BasketData extends ChangeNotifier {
     }
 
     final int currentQuantity =
-        _basketItems[index]['quantity'] as int;
+        _basketItems[index]['quantity'] as int? ?? 1;
 
     _basketItems[index]['quantity'] = currentQuantity + 1;
 
@@ -89,7 +72,7 @@ class BasketData extends ChangeNotifier {
     }
 
     final int currentQuantity =
-        _basketItems[index]['quantity'] as int;
+        _basketItems[index]['quantity'] as int? ?? 1;
 
     if (currentQuantity <= 1) {
       _basketItems.removeAt(index);

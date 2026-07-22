@@ -8,6 +8,8 @@ import 'favourites_data.dart';
 import 'basket_data.dart';
 
 class MealDetailsScreen extends StatefulWidget {
+  final String mealId;
+   final String cookId;
   final String mealName;
   final String cookName;
   final String price;
@@ -22,6 +24,8 @@ class MealDetailsScreen extends StatefulWidget {
 
   const MealDetailsScreen({
     super.key,
+    this.mealId = '',
+    this.cookId = '',
     required this.mealName,
     required this.cookName,
     required this.price,
@@ -109,14 +113,15 @@ class _MealDetailsScreenState extends State<MealDetailsScreen> {
   }
 void addToBasket() {
   basketData.addItem(
-    name: widget.mealName,
-    cook: widget.cookName,
-    price: widget.price,
-    emoji: widget.emoji,
-    imageUrl: widget.imageUrl,
-    quantity: quantity,
-  );
-
+  mealId: widget.mealId,
+  cookId: widget.cookId,
+  name: widget.mealName,
+  cook: widget.cookName,
+  price: widget.price,
+  emoji: widget.emoji,
+  imageUrl: widget.imageUrl,
+  quantity: quantity,
+);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(

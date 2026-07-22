@@ -439,7 +439,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     index++) ...[
                   _buildMealCard(
                     mealId: meals[index].id,
-                    data: meals[index].data(),
+                    data: meals[index].data()
                   ),
                   if (index < meals.length - 1)
                     const SizedBox(
@@ -455,13 +455,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget _buildMealCard({
-    required String mealId,
-    required Map<String, dynamic> data,
-  }) {
-    final mealName =
-        data['mealName']?.toString() ?? 'Unnamed meal';
+  required String mealId,
+  required Map<String, dynamic> data,
+}) {
+  final mealName =
+      data['mealName']?.toString() ?? 'Unnamed meal';
 
-    final priceValue = data['price'];
+  final cookId =
+      data['cookId']?.toString() ?? '';
+
+  final priceValue = data['price'];
 
     final price = priceValue is num
         ? priceValue.toDouble()
@@ -529,6 +532,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => MealDetailsScreen(
+                cookId: cookId,
                 mealName: mealName,
                 cookName: 'HomeEats Cook',
                 price: '£${price.toStringAsFixed(2)}',
