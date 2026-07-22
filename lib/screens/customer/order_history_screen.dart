@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import 'order_details_screen.dart';
 
 class OrderHistoryScreen extends StatelessWidget {
   const OrderHistoryScreen({super.key});
@@ -97,10 +98,25 @@ class OrderHistoryScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final order = orders[index];
 
-                    return _buildOrderCard(
-                      orderId: order.id,
-                      data: order.data(),
-                    );
+                   return InkWell(
+  borderRadius: BorderRadius.circular(AppRadius.card),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return OrderDetailsScreen(
+            orderId: order.id,
+          );
+        },
+      ),
+    );
+  },
+  child: _buildOrderCard(
+    orderId: order.id,
+    data: order.data(),
+  ),
+);
                   },
                 );
               },
