@@ -600,7 +600,29 @@ debugPrint('CURRENT COOK UID: ${user.uid}');
         return bTime.compareTo(aTime);
       });
 
-      final order = orders.first.data();
+    final activeOrders = orders.where((doc) {
+  final data = doc.data();
+  final status = data['status']?.toString().toLowerCase() ?? '';
+
+  return status == 'pending' ||
+      status == 'accepted' ||
+      status == 'preparing' ||
+      status == 'ready';
+}).toList();
+
+if (activeOrders.isEmpty) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: const Text('No incoming orders yet'),
+  );
+}
+
+final order = activeOrders.first.data();
 
       final customerName =
           order['customerName']?.toString() ?? 'Customer';
