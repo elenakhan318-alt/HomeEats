@@ -8,6 +8,7 @@ import 'favourites_screen.dart';
 import 'order_history_screen.dart';
 import 'payment_methods_screen.dart';
 import 'saved_addresses_screen.dart';
+import 'active_orders_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -16,10 +17,7 @@ class ProfileScreen extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-        ),
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
       );
   }
 
@@ -89,18 +87,12 @@ class ProfileScreen extends StatelessWidget {
           SizedBox(height: 5),
           Text(
             'fozia@example.com',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           SizedBox(height: 4),
           Text(
             '07123 456789',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
         ],
       ),
@@ -130,7 +122,12 @@ class ProfileScreen extends StatelessWidget {
           title: 'Active Orders',
           subtitle: 'Track current orders',
           onTap: () {
-            _showMessage(context, 'Active orders will open here.');
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActiveOrdersScreen(),
+              ),
+            );
           },
         ),
         _buildDivider(),
@@ -157,9 +154,7 @@ class ProfileScreen extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => const FavouritesScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const FavouritesScreen()),
             );
           },
         ),
@@ -204,10 +199,7 @@ class ProfileScreen extends StatelessWidget {
           title: 'Notifications',
           subtitle: 'Order and promotional notifications',
           onTap: () {
-            _showMessage(
-              context,
-              'Notification settings will open here.',
-            );
+            _showMessage(context, 'Notification settings will open here.');
           },
         ),
         _buildDivider(),
@@ -281,11 +273,7 @@ class ProfileScreen extends StatelessWidget {
           color: AppColors.primaryLight,
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          icon,
-          color: AppColors.primary,
-          size: 22,
-        ),
+        child: Icon(icon, color: AppColors.primary, size: 22),
       ),
       title: Text(
         title,
@@ -296,10 +284,7 @@ class ProfileScreen extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 12,
-        ),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
       ),
       trailing: const Icon(
         Icons.arrow_forward_ios_rounded,
@@ -325,16 +310,11 @@ class ProfileScreen extends StatelessWidget {
         onPressed: () {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(
-              builder: (context) => const WelcomeScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const WelcomeScreen()),
             (route) => false,
           );
         },
-        icon: const Icon(
-          Icons.logout_rounded,
-          color: Colors.redAccent,
-        ),
+        icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
         label: const Text(
           'Log Out',
           style: TextStyle(
