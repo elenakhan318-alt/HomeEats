@@ -506,7 +506,7 @@ Widget _buildOrderCard() {
   if (user == null) {
     return const SizedBox.shrink();
   }
-
+debugPrint('CURRENT COOK UID: ${user.uid}');
   return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream: FirebaseFirestore.instance
         .collection('orders')
