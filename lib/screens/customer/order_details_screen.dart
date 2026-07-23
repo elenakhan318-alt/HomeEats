@@ -70,6 +70,12 @@ class OrderDetailsScreen extends StatelessWidget {
   }) {
     final status = data['status']?.toString() ?? 'pending';
 
+    final rejectionReason =
+        data['rejectionReason']?.toString().trim() ?? '';
+
+    final customerAcknowledgedRejection =
+        data['customerAcknowledgedRejection'] == true;
+
     final fulfilmentType =
         data['fulfilmentType']?.toString() ?? 'collection';
 
@@ -98,6 +104,14 @@ class OrderDetailsScreen extends StatelessWidget {
           createdDate: createdDate,
         ),
         const SizedBox(height: AppSpacing.regular),
+        if (status == 'rejected') ...[
+          _buildRejectionCard(
+            context: context,
+            rejectionReason: rejectionReason,
+            acknowledged: customerAcknowledgedRejection,
+          ),
+          const SizedBox(height: AppSpacing.regular),
+        ],
         _buildProgressCard(status),
         const SizedBox(height: AppSpacing.regular),
         _buildItemsCard(items),
@@ -113,6 +127,8 @@ class OrderDetailsScreen extends StatelessWidget {
     required double total,
     required String createdDate,
   }) {
+    final isRejected = status == 'rejected';
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.regular),
       decoration: BoxDecoration(
@@ -123,12 +139,18 @@ class OrderDetailsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 28,
-                backgroundColor: AppColors.primaryLight,
+                backgroundColor: isRejected
+                    ? Colors.red.shade100
+                    : AppColors.primaryLight,
                 child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: AppColors.primary,
+                  isRejected
+                      ? Icons.cancel_outlined
+                      : Icons.receipt_long_outlined,
+                  color: isRejected
+                      ? Colors.red.shade700
+                      : AppColors.primary,
                 ),
               ),
               const SizedBox(width: AppSpacing.regular),
@@ -157,8 +179,10 @@ class OrderDetailsScreen extends StatelessWidget {
               ),
               Text(
                 '£${total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: TextStyle(
+                  color: isRejected
+                      ? Colors.red.shade700
+                      : AppColors.primary,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -196,6 +220,146 @@ class OrderDetailsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildRejectionCard({
+    required BuildContext context,
+    required String rejectionReason,
+    required bool acknowledged,
+  }) {
+    final displayedReason = rejectionReason.isEmpty
+        ? 'The cook did not provide a reason.'
+        : rejectionReason;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.regular),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(
+          color: Colors.red.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.red.shade100,
+                child: Icon(
+                  Icons.cancel_outlined,
+                  color: Colors.red.shade700,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.regular),
+              Expanded(
+                child: Text(
+                  'Order rejected',
+                  style: TextStyle(
+                    color: Colors.red.shade800,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.regular),
+          const Text(
+            'Reason from the cook',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.small),
+          Text(
+            displayedReason,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+          if (!acknowledged) ...[
+            const SizedBox(height: AppSpacing.regular),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  _acknowledgeRejection(context);
+                },
+                child: const Text('OK, I understand'),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: AppSpacing.regular),
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 18,
+                  color: Colors.red.shade700,
+                ),
+                const SizedBox(width: AppSpacing.small),
+                Text(
+                  'Rejection acknowledged',
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _acknowledgeRejection(
+    BuildContext context,
+  ) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .update({
+        'customerAcknowledgedRejection': true,
+        'customerAcknowledgedRejectionAt':
+            FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rejection acknowledged.'),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not acknowledge the rejection: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildProgressCard(String status) {
     final rejected = status == 'rejected';
 
@@ -218,21 +382,21 @@ class OrderDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.regular),
           if (rejected)
-            const Row(
+            Row(
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: AppColors.primaryLight,
+                  backgroundColor: Colors.red.shade100,
                   child: Icon(
                     Icons.close_rounded,
                     size: 18,
-                    color: AppColors.primary,
+                    color: Colors.red.shade700,
                   ),
                 ),
-                SizedBox(width: AppSpacing.regular),
-                Expanded(
+                const SizedBox(width: AppSpacing.regular),
+                const Expanded(
                   child: Text(
-                    'This order was not accepted.',
+                    'This order was rejected by the cook.',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w700,
@@ -355,7 +519,9 @@ class OrderDetailsScreen extends StatelessWidget {
               ),
             )
           else
-            for (var index = 0; index < items.length; index++) ...[
+            for (var index = 0;
+                index < items.length;
+                index++) ...[
               if (items[index] is Map)
                 _buildItemRow(items[index] as Map),
               if (index != items.length - 1)
@@ -371,70 +537,74 @@ class OrderDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildItemRow(Map<dynamic, dynamic> item) {
-  final quantityValue = item['quantity'];
+  Widget _buildItemRow(
+    Map<dynamic, dynamic> item,
+  ) {
+    final quantityValue = item['quantity'];
 
-  final quantity = quantityValue is num
-      ? quantityValue.toInt()
-      : int.tryParse(quantityValue?.toString() ?? '') ?? 1;
+    final quantity = quantityValue is num
+        ? quantityValue.toInt()
+        : int.tryParse(quantityValue?.toString() ?? '') ?? 1;
 
-  final totalValue = item['itemTotal'];
+    final totalValue = item['itemTotal'];
 
-  final itemTotal = totalValue is num
-      ? totalValue.toDouble()
-      : double.tryParse(totalValue?.toString() ?? '') ?? 0;
+    final itemTotal = totalValue is num
+        ? totalValue.toDouble()
+        : double.tryParse(totalValue?.toString() ?? '') ?? 0;
 
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        width: 42,
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(AppRadius.medium),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius:
+                BorderRadius.circular(AppRadius.medium),
+          ),
+          child: Text(
+            item['emoji']?.toString() ?? '🍽️',
+            style: const TextStyle(fontSize: 22),
+          ),
         ),
-        child: Text(
-          item['emoji']?.toString() ?? '🍽️',
-          style: const TextStyle(fontSize: 22),
-        ),
-      ),
-      const SizedBox(width: AppSpacing.regular),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item['name']?.toString() ?? 'Meal',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+        const SizedBox(width: AppSpacing.regular),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['name']?.toString() ?? 'Meal',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'Quantity: $quantity',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
+              const SizedBox(height: 3),
+              Text(
+                'Quantity: $quantity',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      Text(
-        '£${itemTotal.toStringAsFixed(2)}',
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
+        Text(
+          '£${itemTotal.toStringAsFixed(2)}',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   Widget _buildTotalCard(double total) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.regular),
@@ -468,19 +638,25 @@ class OrderDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildStatusBadge(String status) {
+    final isRejected = status == 'rejected';
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: 10,
         vertical: 5,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: isRejected
+            ? Colors.red.shade100
+            : AppColors.primaryLight,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
         _statusLabel(status),
-        style: const TextStyle(
-          color: AppColors.primary,
+        style: TextStyle(
+          color: isRejected
+              ? Colors.red.shade700
+              : AppColors.primary,
           fontSize: 11,
           fontWeight: FontWeight.w900,
         ),

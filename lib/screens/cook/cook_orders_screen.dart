@@ -229,35 +229,33 @@ class CookOrdersScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.regular),
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      _updateStatus(
-                        context: context,
-                        orderId: orderId,
-                        status: 'rejected',
-                      );
-                    },
-                    child: const Text('Reject'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.small),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      _updateStatus(
-                        context: context,
-                        orderId: orderId,
-                        status: 'accepted',
-                      );
-                    },
-                    child: const Text('Accept'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-
+  Expanded(
+  child: OutlinedButton(
+    onPressed: () {
+      _showRejectDialog(
+        context: context,
+        orderId: orderId,
+      );
+    },
+    child: const Text('Reject'),
+  ),
+),
+const SizedBox(width: AppSpacing.small),
+Expanded(
+  child: FilledButton(
+    onPressed: () {
+      _updateStatus(
+        context: context,
+        orderId: orderId,
+        status: 'accepted',
+      );
+    },
+    child: const Text('Accept'),
+  ),
+),
+ ],
+  ),
+],
           if (status == 'accepted') ...[
             const SizedBox(height: AppSpacing.regular),
             SizedBox(
@@ -312,7 +310,90 @@ class CookOrdersScreen extends StatelessWidget {
       ),
     );
   }
+Future<void> _showRejectDialog({
+  required BuildContext context,
+  required String orderId,
+}) async {
+  final controller = TextEditingController();
 
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Reject order'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Reason for rejection',
+            hintText: 'Tell the customer why...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+
+              if (text.isEmpty) {
+                return;
+              }
+
+              Navigator.of(dialogContext).pop(text);
+            },
+            child: const Text('Reject'),
+          ),
+        ],
+      );
+    },
+  );
+
+  controller.dispose();
+
+  if (reason == null || reason.isEmpty) {
+    return;
+  }
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .update({
+      'status': 'rejected',
+      'rejectionReason': reason,
+      'rejectedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Order rejected'),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order could not be rejected: $error',
+        ),
+      ),
+    );
+  }
+}
   Future<void> _updateStatus({
     required BuildContext context,
     required String orderId,

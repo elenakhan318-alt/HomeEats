@@ -10,7 +10,13 @@ import 'order_details_screen.dart';
 class ActiveOrdersScreen extends StatelessWidget {
   const ActiveOrdersScreen({super.key});
 
-  static const activeStatuses = {'pending', 'accepted', 'preparing', 'ready'};
+static const activeStatuses = {
+  'pending',
+  'accepted',
+  'preparing',
+  'ready',
+  'rejected',
+};
 
   @override
   Widget build(BuildContext context) {
@@ -47,14 +53,18 @@ class ActiveOrdersScreen extends StatelessWidget {
                 }
 
                 final orders =
-                    snapshot.data?.docs.where((document) {
-                      final status =
-                          document.data()['status']?.toString() ?? 'pending';
+    snapshot.data?.docs.where((document) {
+      final data = document.data();
 
-                      return activeStatuses.contains(status);
-                    }).toList() ??
-                    [];
+      final status = data['status']?.toString() ?? 'pending';
 
+      if (status == 'rejected') {
+        return !(data['customerAcknowledgedRejection'] == true);
+      }
+
+      return activeStatuses.contains(status);
+    }).toList() ??
+    [];
                 orders.sort((first, second) {
                   final firstCreatedAt =
                       first.data()['createdAt'] as Timestamp?;
@@ -293,23 +303,28 @@ class ActiveOrdersScreen extends StatelessWidget {
   }
 
   Widget _buildStatusBadge(String status) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.primaryLight,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text(
-        _statusLabel(status),
-        style: const TextStyle(
-          color: AppColors.primary,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
+  final isRejected = status == 'rejected';
 
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: isRejected
+          ? Colors.red.shade100
+          : AppColors.primaryLight,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+    ),
+    child: Text(
+      _statusLabel(status),
+      style: TextStyle(
+        color: isRejected
+            ? Colors.red
+            : AppColors.primary,
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+  );
+}
   IconData _statusIcon(String status) {
     switch (status) {
       case 'accepted':
@@ -318,6 +333,8 @@ class ActiveOrdersScreen extends StatelessWidget {
         return Icons.restaurant_outlined;
       case 'ready':
         return Icons.check_circle_outline_rounded;
+        case 'rejected':
+  return Icons.cancel_outlined;
       default:
         return Icons.schedule_rounded;
     }
@@ -331,6 +348,8 @@ class ActiveOrdersScreen extends StatelessWidget {
         return 'PREPARING';
       case 'ready':
         return 'READY';
+    case 'rejected':
+    return 'REJECTED';
       default:
         return 'PENDING';
     }
@@ -349,6 +368,8 @@ class ActiveOrdersScreen extends StatelessWidget {
         return fulfilmentType == 'delivery'
             ? 'Ready for delivery'
             : 'Ready for collection';
+            case 'rejected':
+  return 'Please view this order';
       default:
         return 'Waiting for the cook';
     }
