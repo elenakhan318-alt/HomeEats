@@ -15,6 +15,7 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+  final ScrollController _scrollController = ScrollController();
   bool _isDeliverySelected = true;
 
   void _showTemporaryMessage(String message) {
@@ -29,45 +30,54 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Scrollbar(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.page,
-              right: AppSpacing.page,
-              bottom: 40,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTopBar(),
-                const SizedBox(height: AppSpacing.large),
-                _buildLocation(),
-                const SizedBox(height: AppSpacing.extraLarge),
-                _buildGreeting(),
-                const SizedBox(height: AppSpacing.large),
-                _buildOrderTypeSelector(),
-                const SizedBox(height: AppSpacing.regular),
-                _buildSearchBar(),
-                const SizedBox(height: AppSpacing.large),
-                _buildPromotionBanner(),
-                const SizedBox(height: AppSpacing.section),
-                _buildLiveMeals(),
-                const SizedBox(height: AppSpacing.section),
-                _buildCuisineSection(),
-                const SizedBox(height: AppSpacing.section),
-                _buildCookSpotlight(),
-              ],
-            ),
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: AppColors.background,
+    body: SafeArea(
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          primary: false,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(
+            left: AppSpacing.page,
+            right: AppSpacing.page,
+            bottom: 40,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopBar(),
+              const SizedBox(height: AppSpacing.large),
+              _buildLocation(),
+              const SizedBox(height: AppSpacing.extraLarge),
+              _buildGreeting(),
+              const SizedBox(height: AppSpacing.large),
+              _buildOrderTypeSelector(),
+              const SizedBox(height: AppSpacing.regular),
+              _buildSearchBar(),
+              const SizedBox(height: AppSpacing.large),
+              _buildPromotionBanner(),
+              const SizedBox(height: AppSpacing.section),
+              _buildLiveMeals(),
+              const SizedBox(height: AppSpacing.section),
+              _buildCuisineSection(),
+              const SizedBox(height: AppSpacing.section),
+              _buildCookSpotlight(),
+            ],
           ),
         ),
       ),
-    );
-  }
-
+    ),
+  );
+}
+@override
+void dispose() {
+  _scrollController.dispose();
+  super.dispose();
+}
   Widget _buildTopBar() {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.small),
