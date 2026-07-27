@@ -93,7 +93,24 @@ class CookEarningsScreen extends StatelessWidget {
       ),
     );
   }
+String _formatDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
+  return '${date.day} ${months[date.month - 1]} ${date.year}';
+}
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -141,6 +158,8 @@ class CookEarningsScreen extends StatelessWidget {
           double monthEarnings = 0;
           double totalEarnings = 0;
           int completedOrders = 0;
+          final completedOrderDocuments =
+    <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
           for (final document in snapshot.data!.docs) {
             final data = document.data();
@@ -172,6 +191,7 @@ class CookEarningsScreen extends StatelessWidget {
 
             completedOrders++;
             totalEarnings += total;
+            completedOrderDocuments.add(document);
 
             if (_isSameDay(completedDate, now)) {
               todayEarnings += total;
@@ -186,7 +206,35 @@ class CookEarningsScreen extends StatelessWidget {
               monthEarnings += total;
             }
           }
+completedOrderDocuments.sort((first, second) {
+  final firstData = first.data();
+  final secondData = second.data();
 
+  final firstTimestamp =
+      firstData['completedAt'] ??
+      firstData['updatedAt'] ??
+      firstData['createdAt'];
+
+  final secondTimestamp =
+      secondData['completedAt'] ??
+      secondData['updatedAt'] ??
+      secondData['createdAt'];
+
+  if (firstTimestamp is! Timestamp &&
+      secondTimestamp is! Timestamp) {
+    return 0;
+  }
+
+  if (firstTimestamp is! Timestamp) {
+    return 1;
+  }
+
+  if (secondTimestamp is! Timestamp) {
+    return -1;
+  }
+
+  return secondTimestamp.compareTo(firstTimestamp);
+});
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -219,6 +267,82 @@ class CookEarningsScreen extends StatelessWidget {
                 value: completedOrders.toString(),
                 icon: Icons.check_circle_outline,
               ),
+              const SizedBox(height: 24),
+const Text(
+  'Recent completed orders',
+  style: TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w800,
+  ),
+),
+const SizedBox(height: 12),
+if (completedOrderDocuments.isEmpty)
+  const Card(
+    child: Padding(
+      padding: EdgeInsets.all(18),
+      child: Text('No completed orders yet.'),
+    ),
+  )
+else
+  ...completedOrderDocuments.map((document) {
+    final data = document.data();
+
+    final customerName =
+        data['customerName']?.toString().trim().isNotEmpty == true
+            ? data['customerName'].toString().trim()
+            : 'Customer';
+
+    final total = _readOrderTotal(data);
+
+    final timestamp =
+        data['completedAt'] ??
+        data['updatedAt'] ??
+        data['createdAt'];
+
+    final dateText = timestamp is Timestamp
+        ? _formatDate(timestamp.toDate())
+        : 'Date unavailable';
+
+    final items = data['items'] as List? ?? [];
+
+    final itemText = items
+        .map((item) {
+          if (item is! Map) {
+            return '';
+          }
+
+          final quantity = item['quantity'] ?? 1;
+          final name =
+              item['name'] ??
+              item['mealName'] ??
+              'Item';
+
+          return '$quantity × $name';
+        })
+        .where((text) => text.isNotEmpty)
+        .join(', ');
+
+    return Card(
+      child: ListTile(
+        leading: const CircleAvatar(
+          child: Icon(Icons.receipt_long),
+        ),
+        title: Text(customerName),
+        subtitle: Text(
+          itemText.isEmpty
+              ? dateText
+              : '$itemText\n$dateText',
+        ),
+        isThreeLine: itemText.isNotEmpty,
+        trailing: Text(
+          '£${total.toStringAsFixed(2)}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }),
             ],
           );
         },
