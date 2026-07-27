@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import 'report_cook_screen.dart';
+import 'rate_order_screen.dart';
 
 class OrderDetailsScreen extends StatelessWidget {
   const OrderDetailsScreen({
@@ -114,9 +116,19 @@ class OrderDetailsScreen extends StatelessWidget {
         ],
         _buildProgressCard(status),
         const SizedBox(height: AppSpacing.regular),
-        _buildItemsCard(items),
-        const SizedBox(height: AppSpacing.regular),
-        _buildTotalCard(total),
+_buildItemsCard(items),
+const SizedBox(height: AppSpacing.regular),
+
+_buildTotalCard(total),
+
+if (status == 'completed') ...[
+  const SizedBox(height: AppSpacing.regular),
+  _buildRatingCard(context),
+],
+
+const SizedBox(height: AppSpacing.regular),
+
+_buildSafetyCard(context),
       ],
     );
   }
@@ -604,7 +616,96 @@ class OrderDetailsScreen extends StatelessWidget {
       ],
     );
   }
-
+  Widget _buildRatingCard(BuildContext context) {
+  return Container(
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Enjoyed your meal?',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.small),
+        const Text(
+          'Help other customers by rating your experience.',
+        ),
+        const SizedBox(height: AppSpacing.regular),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+          onPressed: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => RateOrderScreen(
+        orderId: orderId,
+      ),
+    ),
+  );
+},
+            icon: const Icon(Icons.star_outline),
+            label: const Text('Rate this order'),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+Widget _buildSafetyCard(BuildContext context) {
+  return Container(
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Need help with this order?',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.small),
+        const Text(
+          'Report a serious issue with this order or the cook.',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.regular),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('Report cook'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+              builder: (_) => ReportCookScreen(
+  orderId: orderId,
+),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildTotalCard(double total) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.regular),

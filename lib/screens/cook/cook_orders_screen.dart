@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import 'report_customer_screen.dart';
 
 class CookOrdersScreen extends StatelessWidget {
   const CookOrdersScreen({super.key});
@@ -306,10 +307,30 @@ Expanded(
               ),
             ),
           ],
+          const SizedBox(height: AppSpacing.regular),
+
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ReportCustomerScreen(
+        orderId: orderId,
+      ),
+    ),
+  );
+},
+    icon: const Icon(Icons.flag_outlined),
+    label: const Text('Report customer'),
+  ),
+),
         ],
       ),
     );
   }
+  
 Future<void> _showRejectDialog({
   required BuildContext context,
   required String orderId,

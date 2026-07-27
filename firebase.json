@@ -1,1 +1,42 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"home-food-marketplace-5a60f","appId":"1:642697276714:android:a0d996794335dfd2c08253","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"home-food-marketplace-5a60f","configurations":{"android":"1:642697276714:android:a0d996794335dfd2c08253","ios":"1:642697276714:ios:1fca648df0a54840c08253","macos":"1:642697276714:ios:1fca648df0a54840c08253","web":"1:642697276714:web:e1dbe927da488fa3c08253","windows":"1:642697276714:web:bc80a2452c861651c08253"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "home-food-marketplace-5a60f",
+          "appId": "1:642697276714:android:a0d996794335dfd2c08253",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "home-food-marketplace-5a60f",
+          "configurations": {
+            "android": "1:642697276714:android:a0d996794335dfd2c08253",
+            "ios": "1:642697276714:ios:1fca648df0a54840c08253",
+            "macos": "1:642697276714:ios:1fca648df0a54840c08253",
+            "web": "1:642697276714:web:e1dbe927da488fa3c08253",
+            "windows": "1:642697276714:web:bc80a2452c861651c08253"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ]
+}

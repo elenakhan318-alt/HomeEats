@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class ReportCookScreen extends StatefulWidget {
-  const ReportCookScreen({
+class ReportCustomerScreen extends StatefulWidget {
+  const ReportCustomerScreen({
     super.key,
     required this.orderId,
   });
@@ -11,19 +11,23 @@ class ReportCookScreen extends StatefulWidget {
   final String orderId;
 
   @override
-  State<ReportCookScreen> createState() => _ReportCookScreenState();
+  State<ReportCustomerScreen> createState() =>
+      _ReportCustomerScreenState();
 }
 
-class _ReportCookScreenState extends State<ReportCookScreen> {
+class _ReportCustomerScreenState
+    extends State<ReportCustomerScreen> {
   final TextEditingController _detailsController =
       TextEditingController();
 
   final List<String> _reasons = [
     'Abusive behaviour',
-    'Food safety concern',
-    'Harassment',
+    'Threatening behaviour',
+    'Customer unavailable',
+    'Incorrect address',
+    'Failed to collect order',
     'Suspected fraud',
-    'Order issue',
+    'False complaint',
     'Other',
   ];
 
@@ -77,16 +81,16 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
       final orderData =
           orderSnapshot.data() ?? <String, dynamic>{};
 
-      final cookId = _readCookId(orderData);
+      final customerId = _readCustomerId(orderData);
 
-      if (cookId.isEmpty) {
+      if (customerId.isEmpty) {
         throw Exception(
-          'The cook could not be identified.',
+          'The customer could not be identified.',
         );
       }
 
       final complaintId =
-          '${widget.orderId}_${currentUser.uid}_cook';
+          '${widget.orderId}_${currentUser.uid}_customer';
 
       final complaintReference = FirebaseFirestore.instance
           .collection('complaints')
@@ -99,7 +103,7 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
 
           if (existingComplaint.exists) {
             throw Exception(
-              'You have already reported this order.',
+              'You have already reported this customer for this order.',
             );
           }
 
@@ -108,9 +112,9 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
             {
               'orderId': widget.orderId,
               'submittedByUserId': currentUser.uid,
-              'submittedByRole': 'customer',
-              'reportedUserId': cookId,
-              'reportedUserRole': 'cook',
+              'submittedByRole': 'cook',
+              'reportedUserId': customerId,
+              'reportedUserRole': 'customer',
               'category': _selectedReason,
               'description': details,
               'status': 'open',
@@ -151,20 +155,21 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
     }
   }
 
-  String _readCookId(
+  String _readCustomerId(
     Map<String, dynamic> orderData,
   ) {
-    final cookId =
-        orderData['cookId']?.toString().trim() ?? '';
+    final customerId =
+        orderData['customerId']?.toString().trim() ?? '';
 
-    if (cookId.isNotEmpty) {
-      return cookId;
+    if (customerId.isNotEmpty) {
+      return customerId;
     }
 
-    final cookIds = orderData['cookIds'];
+    final userId =
+        orderData['userId']?.toString().trim() ?? '';
 
-    if (cookIds is List && cookIds.isNotEmpty) {
-      return cookIds.first.toString().trim();
+    if (userId.isNotEmpty) {
+      return userId;
     }
 
     return '';
@@ -182,7 +187,7 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Report Cook'),
+        title: const Text('Report Customer'),
         centerTitle: true,
       ),
       body: SafeArea(

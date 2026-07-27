@@ -7,6 +7,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import 'add_today_meal_screen.dart';
 import 'cook_orders_screen.dart';
+import 'cook_reviews_screen.dart';
 
 class CookDashboardScreen extends StatelessWidget {
   const CookDashboardScreen({super.key});
@@ -72,6 +73,8 @@ class CookDashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.large),
               _buildAvailabilityCard(),
               const SizedBox(height: AppSpacing.large),
+              _buildRatingCard(context),
+              const SizedBox(height: AppSpacing.large),
               _buildSummaryCards(),
               const SizedBox(height: AppSpacing.large),
               _buildSectionTitle('Today’s Meals'),
@@ -80,18 +83,18 @@ class CookDashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.large),
               _buildSectionTitle('Incoming Orders'),
               const SizedBox(height: AppSpacing.regular),
-            InkWell(
-  borderRadius: BorderRadius.circular(AppRadius.card),
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const CookOrdersScreen(),
-      ),
-    );
-  },
-  child: _buildOrderCard(),
-),
+              InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CookOrdersScreen(),
+                    ),
+                  );
+                },
+                child: _buildOrderCard(),
+              ),
             ],
           ),
         ),
@@ -231,6 +234,121 @@ class CookDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRatingCard(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('ratings')
+          .where('cookId', isEqualTo: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _buildMessageCard(
+            icon: Icons.error_outline_rounded,
+            title: 'Ratings could not be loaded',
+            message: snapshot.error.toString(),
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.large),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final ratings = snapshot.data?.docs ?? [];
+
+        double average = 0;
+
+        if (ratings.isNotEmpty) {
+          for (final document in ratings) {
+            final value = document.data()['rating'];
+
+            if (value is num) {
+              average += value.toDouble();
+            }
+          }
+
+          average /= ratings.length;
+        }
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CookReviewsScreen(),
+                ),
+              );
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.large),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.star_rounded,
+                    color: Colors.amber,
+                    size: 42,
+                  ),
+                  const SizedBox(width: AppSpacing.regular),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ratings.isEmpty
+                              ? 'No ratings yet'
+                              : average.toStringAsFixed(1),
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${ratings.length} review${ratings.length == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -500,205 +618,218 @@ class CookDashboardScreen extends StatelessWidget {
     );
   }
 
-Widget _buildOrderCard() {
-  final user = FirebaseAuth.instance.currentUser;
+  Widget _buildOrderCard() {
+    final user = FirebaseAuth.instance.currentUser;
 
-  if (user == null) {
-    return const SizedBox.shrink();
-  }
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
 
-  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: FirebaseFirestore.instance
-        .collection('orders')
-        .where('cookIds', arrayContains: user.uid)
-        .snapshots(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.regular),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('cookIds', arrayContains: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-      if (snapshot.hasError) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.regular),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: const Text('Unable to load orders.'),
-        );
-      }
+        if (snapshot.hasError) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: const Text('Unable to load orders.'),
+          );
+        }
 
-      final orders = snapshot.data?.docs ?? [];
+        final orders = snapshot.data?.docs ?? [];
 
-      orders.sort((a, b) {
-        final aTime = a.data()['createdAt'] as Timestamp?;
-        final bTime = b.data()['createdAt'] as Timestamp?;
+        orders.sort((first, second) {
+          final firstTime =
+              first.data()['createdAt'] as Timestamp?;
+          final secondTime =
+              second.data()['createdAt'] as Timestamp?;
 
-        if (aTime == null && bTime == null) return 0;
-        if (aTime == null) return 1;
-        if (bTime == null) return -1;
+          if (firstTime == null && secondTime == null) {
+            return 0;
+          }
 
-        return bTime.compareTo(aTime);
-      });
+          if (firstTime == null) {
+            return 1;
+          }
 
-      final activeOrders = orders.where((doc) {
-        final status =
-            doc.data()['status']?.toString().toLowerCase() ?? '';
+          if (secondTime == null) {
+            return -1;
+          }
 
-        return status == 'pending' ||
-            status == 'accepted' ||
-            status == 'preparing' ||
-            status == 'ready';
-      }).toList();
+          return secondTime.compareTo(firstTime);
+        });
 
-      if (activeOrders.isEmpty) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.regular),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppColors.primaryLight,
-                child: Icon(
-                  Icons.shopping_bag_outlined,
-                  color: AppColors.primary,
+        final activeOrders = orders.where((document) {
+          final status =
+              document.data()['status']?.toString().toLowerCase() ?? '';
+
+          return status == 'pending' ||
+              status == 'accepted' ||
+              status == 'preparing' ||
+              status == 'ready';
+        }).toList();
+
+        if (activeOrders.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: const Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColors.primaryLight,
+                  child: Icon(
+                    Icons.shopping_bag_outlined,
+                    color: AppColors.primary,
+                  ),
                 ),
+                SizedBox(width: AppSpacing.regular),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'No incoming orders yet',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'New customer orders will appear here.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: activeOrders.map((document) {
+            final order = document.data();
+
+            final customerName =
+                order['customerName']?.toString() ?? 'Customer';
+
+            final status =
+                order['status']?.toString() ?? 'Pending';
+
+            final total =
+                (order['total'] as num?)?.toDouble() ?? 0;
+
+            final items = order['items'] as List? ?? [];
+
+            final mealText = items
+                .map((item) {
+                  if (item is! Map) {
+                    return '';
+                  }
+
+                  final quantity = item['quantity'] ?? 1;
+                  final name = item['name'] ?? 'Item';
+
+                  return '$quantity × $name';
+                })
+                .where((text) => text.isNotEmpty)
+                .join(', ');
+
+            return Padding(
+              padding: const EdgeInsets.only(
+                bottom: AppSpacing.regular,
               ),
-              SizedBox(width: AppSpacing.regular),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.regular),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      'No incoming orders yet',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
+                    const CircleAvatar(
+                      backgroundColor: AppColors.primaryLight,
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: AppColors.primary,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(width: AppSpacing.regular),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            customerName,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            mealText,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            status.toUpperCase(),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     Text(
-                      'New customer orders will appear here.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
+                      '£${total.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            );
+          }).toList(),
         );
-      }
-
-      return Column(
-        children: activeOrders.map((doc) {
-          final order = doc.data();
-
-          final customerName =
-              order['customerName']?.toString() ?? 'Customer';
-
-          final status =
-              order['status']?.toString() ?? 'Pending';
-
-          final total =
-              (order['total'] as num?)?.toDouble() ?? 0;
-
-          final items = order['items'] as List? ?? [];
-
-          final mealText = items.map((item) {
-            if (item is! Map) {
-              return '';
-            }
-
-            final quantity = item['quantity'] ?? 1;
-            final name = item['name'] ?? 'Item';
-
-            return '$quantity × $name';
-          }).where((text) => text.isNotEmpty).join(', ');
-
-          return Padding(
-            padding: const EdgeInsets.only(
-              bottom: AppSpacing.regular,
-            ),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.regular),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(AppRadius.card),
-              ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: AppColors.primaryLight,
-                    child: Icon(
-                      Icons.shopping_bag_outlined,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.regular),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          customerName,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          mealText,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          status.toUpperCase(),
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    '£${total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      );
-    },
-  );
-}
+      },
+    );
+  }
 }
