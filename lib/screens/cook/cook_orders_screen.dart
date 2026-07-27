@@ -382,7 +382,11 @@ Future<void> _showRejectDialog({
   }
 
   try { 
-
+     await _updateStatus(
+    context: context,
+    orderId: orderId,
+    status: 'rejected',
+  );
     if (!context.mounted) {
       return;
     }
@@ -412,7 +416,6 @@ Future<void> _updateStatus({
   required String status,
 }) async {
   try {
-      print('UPDATE STATUS CALLED');
     final orderReference = FirebaseFirestore.instance
         .collection('orders')
         .doc(orderId);
