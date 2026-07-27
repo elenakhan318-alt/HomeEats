@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../theme/app_colors.dart';
 import 'basket_screen.dart';
@@ -43,7 +45,7 @@ class _CustomerMainScreenState
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _changePage,
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
@@ -59,9 +61,33 @@ class _CustomerMainScreenState
             selectedIcon: Icon(Icons.shopping_basket_rounded),
             label: 'Basket',
           ),
-          NavigationDestination(
-  icon: Icon(Icons.notifications_none_rounded),
-  selectedIcon: Icon(Icons.notifications_rounded),
+        NavigationDestination(
+  icon: StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('notifications')
+        .where(
+          'userId',
+          isEqualTo: FirebaseAuth.instance.currentUser?.uid,
+        )
+        .where('isRead', isEqualTo: false)
+        .snapshots(),
+    builder: (context, snapshot) {
+      final unreadCount = snapshot.data?.docs.length ?? 0;
+
+      return Badge(
+        isLabelVisible: unreadCount > 0,
+        label: Text(
+          unreadCount > 9 ? '9+' : unreadCount.toString(),
+        ),
+        child: const Icon(
+          Icons.notifications_none_rounded,
+        ),
+      );
+    },
+  ),
+  selectedIcon: const Icon(
+    Icons.notifications_rounded,
+  ),
   label: 'Alerts',
 ),
           NavigationDestination(
