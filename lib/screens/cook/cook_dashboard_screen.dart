@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import 'add_today_meal_screen.dart';
 import 'cook_orders_screen.dart';
 import 'cook_reviews_screen.dart';
+import 'cook_earnings_screen.dart';
 
 class CookDashboardScreen extends StatelessWidget {
   const CookDashboardScreen({super.key});
@@ -75,7 +76,7 @@ class CookDashboardScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.large),
               _buildRatingCard(context),
               const SizedBox(height: AppSpacing.large),
-              _buildSummaryCards(),
+              _buildSummaryCards(context),
               const SizedBox(height: AppSpacing.large),
               _buildSectionTitle('Today’s Meals'),
               const SizedBox(height: AppSpacing.regular),
@@ -352,7 +353,7 @@ class CookDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCards() {
+  Widget _buildSummaryCards(BuildContext context) {
     return Row(
       children: [
         Expanded(
@@ -364,22 +365,35 @@ class CookDashboardScreen extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.regular),
         Expanded(
-          child: _buildSummaryCard(
-            icon: Icons.payments_outlined,
-            title: 'Earnings',
-            value: '£0.00',
-          ),
+  child: InkWell(
+    borderRadius: BorderRadius.circular(AppRadius.card),
+    onTap: () {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const CookEarningsScreen(),
         ),
+      );
+    },
+    child: _buildSummaryCard(
+      icon: Icons.payments_outlined,
+      title: 'Earnings',
+      value: '£0.00',
+    ),
+  ),
+),
       ],
     );
   }
-
-  Widget _buildSummaryCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Container(
+   Widget _buildSummaryCard({
+  required IconData icon,
+  required String title,
+  required String value,
+  VoidCallback? onTap,
+}) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(AppRadius.card),
+    onTap: onTap,
+    child: Container(
       padding: const EdgeInsets.all(AppSpacing.large),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -411,9 +425,9 @@ class CookDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
+    ),
+  );
+} 
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
