@@ -5,6 +5,7 @@ import 'basket_screen.dart';
 import 'customer_home_screen.dart';
 import 'profile_screen.dart';
 import 'search_screen.dart';
+import 'notifications_screen.dart';
 
 class CustomerMainScreen extends StatefulWidget {
   const CustomerMainScreen({super.key});
@@ -19,12 +20,12 @@ class _CustomerMainScreenState
   int _selectedIndex = 0;
 
   final List<Widget> _pages = const [
-    CustomerHomeScreen(),
-    SearchScreen(),
-    BasketScreen(),
-    ProfileScreen(),
-  ];
-
+  CustomerHomeScreen(),
+  SearchScreen(),
+  BasketScreen(),
+  NotificationsScreen(),
+  ProfileScreen(),
+];
   void _changePage(int index) {
     setState(() {
       _selectedIndex = index;
@@ -58,6 +59,11 @@ class _CustomerMainScreenState
             selectedIcon: Icon(Icons.shopping_basket_rounded),
             label: 'Basket',
           ),
+          NavigationDestination(
+  icon: Icon(Icons.notifications_none_rounded),
+  selectedIcon: Icon(Icons.notifications_rounded),
+  label: 'Alerts',
+),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
             selectedIcon: Icon(Icons.person_rounded),

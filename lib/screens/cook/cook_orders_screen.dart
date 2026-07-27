@@ -381,16 +381,7 @@ Future<void> _showRejectDialog({
     return;
   }
 
-  try {
-    await FirebaseFirestore.instance
-        .collection('orders')
-        .doc(orderId)
-        .update({
-      'status': 'rejected',
-      'rejectionReason': reason,
-      'rejectedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  try { 
 
     if (!context.mounted) {
       return;
@@ -414,32 +405,77 @@ Future<void> _showRejectDialog({
       ),
     );
   }
-}
-  Future<void> _updateStatus({
-    required BuildContext context,
-    required String orderId,
-    required String status,
-  }) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(orderId)
-          .update({
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
+  }
+Future<void> _updateStatus({
+  required BuildContext context,
+  required String orderId,
+  required String status,
+}) async {
+  try {
+      print('UPDATE STATUS CALLED');
+    final orderReference = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Order could not be updated: $error',
-          ),
-        ),
-      );
+    await FirebaseFirestore.instance.runTransaction(
+      (transaction) async {
+        final orderSnapshot =
+            await transaction.get(orderReference);
+
+        final orderData =
+            orderSnapshot.data() ?? <String, dynamic>{};
+
+        final customerId =
+            orderData['customerId']?.toString() ?? '';
+
+        transaction.update(
+          orderReference,
+          {
+            'status': status,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+
+        if (customerId.isNotEmpty) {
+          final notificationReference =
+              FirebaseFirestore.instance
+                  .collection('notifications')
+                  .doc();
+
+          final readableStatus =
+              status.replaceAll('_', ' ');
+
+          transaction.set(
+            notificationReference,
+            {
+              'userId': customerId,
+              'orderId': orderId,
+              'type': 'order_status',
+              'title': 'Order update',
+              'message':
+                  'Your order is now $readableStatus.',
+              'status': status,
+              'isRead': false,
+              'createdAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        }
+      },
+    );
+  } catch (error) {
+    if (!context.mounted) {
+      return;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order could not be updated: $error',
+        ),
+      ),
+    );
   }
 }
+}
+
