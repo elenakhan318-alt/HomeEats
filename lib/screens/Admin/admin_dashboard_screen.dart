@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'admin_users_screen.dart';
+import 'admin_orders_screen.dart';
+import 'admin_meals_screen.dart';
+import 'admin_complaints_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -30,21 +33,42 @@ class AdminDashboardScreen extends StatelessWidget {
                 );
               },
             ),
-            const _AdminCard(
-              icon: Icons.receipt_long_rounded,
-              title: 'Orders',
-              subtitle: 'View all orders',
-            ),
-            const _AdminCard(
-              icon: Icons.restaurant_menu_rounded,
-              title: 'Meals',
-              subtitle: 'Manage listings',
-            ),
-            const _AdminCard(
-              icon: Icons.report_problem_rounded,
-              title: 'Complaints',
-              subtitle: 'Review reports',
-            ),
+            _AdminCard(
+  icon: Icons.receipt_long_rounded,
+  title: 'Orders',
+  subtitle: 'View all orders',
+  onTap: () {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AdminOrdersScreen(),
+      ),
+    );
+  },
+),
+          _AdminCard(
+  icon: Icons.restaurant_menu_rounded,
+  title: 'Meals',
+  subtitle: 'Manage listings',
+  onTap: () {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AdminMealsScreen(),
+      ),
+    );
+  },
+),
+          _AdminCard(
+  icon: Icons.report_problem_rounded,
+  title: 'Complaints',
+  subtitle: 'Review reports',
+  onTap: () {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AdminComplaintsScreen(),
+      ),
+    );
+  },
+),
           ],
         ),
       ),

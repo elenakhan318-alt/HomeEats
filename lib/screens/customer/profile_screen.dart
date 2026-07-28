@@ -9,6 +9,9 @@ import 'order_history_screen.dart';
 import 'payment_methods_screen.dart';
 import 'saved_addresses_screen.dart';
 import 'active_orders_screen.dart';
+import 'edit_profile_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -40,7 +43,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildProfileHeader(),
+            _buildProfileHeader(),
               const SizedBox(height: AppSpacing.large),
               _buildAccountSection(context),
               const SizedBox(height: AppSpacing.large),
@@ -56,49 +59,95 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.large),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: const Column(
-        children: [
-          CircleAvatar(
-            radius: 46,
-            backgroundColor: AppColors.primaryLight,
-            child: Icon(
-              Icons.person_rounded,
-              size: 52,
-              color: AppColors.primary,
-            ),
-          ),
-          SizedBox(height: AppSpacing.regular),
-          Text(
-            'Fozia Ahmed',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          SizedBox(height: 5),
-          Text(
-            'fozia@example.com',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-          ),
-          SizedBox(height: 4),
-          Text(
-            '07123 456789',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-          ),
-        ],
-      ),
-    );
+ Widget _buildProfileHeader(BuildContext context) {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return const SizedBox.shrink();
   }
 
+  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.large),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      final data = snapshot.data?.data();
+
+      final fullName =
+          (data?['fullName'] ?? 'User').toString();
+
+      final email =
+          (data?['email'] ?? user.email ?? '').toString();
+
+      final phone =
+          (data?['phone'] ?? '').toString();
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.large),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Column(
+          children: [
+            const CircleAvatar(
+              radius: 46,
+              backgroundColor: AppColors.primaryLight,
+              child: Icon(
+                Icons.person_rounded,
+                size: 52,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.regular),
+            Text(
+              fullName,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              email,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                phone,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+}
   Widget _buildAccountSection(BuildContext context) {
     return _buildSection(
       title: 'My Account',
@@ -131,14 +180,19 @@ class ProfileScreen extends StatelessWidget {
           },
         ),
         _buildDivider(),
-        _buildProfileTile(
-          icon: Icons.person_outline_rounded,
-          title: 'Edit Profile',
-          subtitle: 'Update your personal information',
-          onTap: () {
-            _showMessage(context, 'Edit profile will open here.');
-          },
-        ),
+      _buildProfileTile(
+  icon: Icons.person_outline_rounded,
+  title: 'Edit Profile',
+  subtitle: 'Update your personal information',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const EditProfileScreen(),
+      ),
+    );
+  },
+),
       ],
     );
   }
