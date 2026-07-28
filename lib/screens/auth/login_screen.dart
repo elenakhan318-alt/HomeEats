@@ -1,10 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
-import '../cook/cook_dashboard_screen.dart';
-import '../customer/customer_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,66 +25,55 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-Future<void> _signIn() async {
-  if (!_formKey.currentState!.validate()) return;
 
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    final credential = await AuthService().signIn(
-      email: _emailController.text,
-      password: _passwordController.text,
-    );
-
-    final uid = credential.user!.uid;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    final role = doc.data()?['role'];
-
-    if (!mounted) return;
-
-    if (role == 'cook') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const CookDashboardScreen(),
-        ),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const CustomerMainScreen(),
-        ),
-      );
+  Future<void> _signIn() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
     }
-  } on FirebaseAuthException catch (e) {
-    if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(e.message ?? 'Sign in failed'),
-      ),
-    );
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await AuthService().signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).popUntil(
+        (route) => route.isFirst,
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message ?? 'Sign in failed',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Sign in"),
+        title: const Text('Sign in'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -101,46 +87,39 @@ Future<void> _signIn() async {
                   size: 64,
                   color: Colors.orange,
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
-                  "Welcome Back",
+                  'Welcome Back',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
-                  "Sign in to your HomeEats account.",
+                  'Sign in to your HomeEats account.',
                 ),
-
                 const SizedBox(height: 30),
-
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: "Email",
+                    labelText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Enter your email";
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Enter your email';
                     }
+
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 20),
-
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _hidePassword,
                   decoration: InputDecoration(
-                    labelText: "Password",
+                    labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       onPressed: () {
@@ -157,27 +136,28 @@ Future<void> _signIn() async {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return "Enter your password";
+                      return 'Enter your password';
                     }
+
                     return null;
                   },
                 ),
-
                 const SizedBox(height: 30),
-
                 FilledButton(
-                onPressed: _isLoading ? null : _signIn,
+                  onPressed: _isLoading ? null : _signIn,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
                     child: _isLoading
-    ? const SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-        ),
-      )
-    : const Text("Sign in"),
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Sign in'),
                   ),
                 ),
               ],

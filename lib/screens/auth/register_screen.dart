@@ -2,8 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
-import '../cook/cook_dashboard_screen.dart';
-import '../customer/customer_main_screen.dart';
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -58,18 +56,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final Widget destination;
 
-    if (_selectedRole == 'cook') {
-      destination = const CookDashboardScreen();
-    } else {
-      destination = const CustomerMainScreen();
-    }
+    if (!mounted) {
+  return;
+}
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (context) => destination,
-      ),
-      (route) => false,
-    );
+Navigator.of(context).popUntil(
+  (route) => route.isFirst,
+);
   } on FirebaseAuthException catch (error) {
     if (!mounted) {
       return;

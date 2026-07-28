@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../cook/cook_dashboard_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
 import '../customer/customer_main_screen.dart';
 import 'welcome_screen.dart';
 
@@ -49,15 +50,23 @@ class AuthGate extends StatelessWidget {
             }
 
             final role = profile['role'] as String?;
+            debugPrint('Logged in email: ${user.email}');
+debugPrint('Role: $role');
+if (role == 'admin') {
+  return const AdminDashboardScreen();
+}
 
-            if (role == 'cook') {
-              return const CookDashboardScreen();
-            }
+if (role == 'cook') {
+  return const CookDashboardScreen();
+}
 
-            if (role == 'customer') {
-              return const CustomerMainScreen();
-            }
+if (role == 'customer') {
+  return const CustomerMainScreen();
+}
 
+return const _AuthErrorScreen(
+  message: 'Your account role is not recognised.',
+);
             return const _AuthErrorScreen(
               message: 'Your account role is not recognised.',
             );
