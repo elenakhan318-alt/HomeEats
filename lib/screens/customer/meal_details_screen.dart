@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
@@ -6,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import 'basket_screen.dart';
 import 'favourites_data.dart';
 import 'basket_data.dart';
+import 'cook_profile_screen.dart';
 
 class MealDetailsScreen extends StatefulWidget {
   final String mealId;
@@ -14,6 +16,7 @@ class MealDetailsScreen extends StatefulWidget {
   final String cookName;
   final String price;
   final double rating;
+  final int portionsLeft;
   final int reviewCount;
   final String deliveryText;
   final String emoji;
@@ -21,24 +24,30 @@ class MealDetailsScreen extends StatefulWidget {
   final String description;
   final List<String> ingredients;
   final List<String> allergens;
+  final bool canOrderNow;
+final String readyTime;
+final String cutOffTime;
 
-  const MealDetailsScreen({
-    super.key,
-    this.mealId = '',
-    this.cookId = '',
-    required this.mealName,
-    required this.cookName,
-    required this.price,
-    required this.rating,
-    required this.reviewCount,
-    required this.deliveryText,
-    required this.emoji,
-    this.imageUrl,
-    required this.description,
-    required this.ingredients,
-    required this.allergens,
-  });
-
+const MealDetailsScreen({
+  super.key,
+this.mealId = '',
+this.cookId = '',
+this.portionsLeft = 0,
+  required this.mealName,
+  required this.cookName,
+  required this.price,
+  required this.rating,
+  required this.reviewCount,
+  required this.deliveryText,
+  required this.emoji,
+  this.imageUrl,
+  required this.description,
+  required this.ingredients,
+  required this.allergens,
+  required this.canOrderNow,
+required this.readyTime,
+required this.cutOffTime,
+});
   @override
   State<MealDetailsScreen> createState() => _MealDetailsScreenState();
 }
@@ -46,28 +55,165 @@ class MealDetailsScreen extends StatefulWidget {
 class _MealDetailsScreenState extends State<MealDetailsScreen> {
   int quantity = 1;
   bool isFavourite = false;
+  bool? _firestoreCanOrderNow;
+  bool _checkingOrderWindow = true;
+  String _orderStatusText = 'Ordering unavailable';
 
-  @override
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
 
-    isFavourite = favouritesData.isFavourite(widget.mealName);
+  isFavourite =
+      favouritesData.isMealFavourite(widget.mealId);
+
+  _checkCurrentOrderWindow();
+}
+Future<void> _checkCurrentOrderWindow() async {
+  try {
+    final mealDocument = await FirebaseFirestore.instance
+        .collection('meals')
+        .doc(widget.mealId)
+        .get();
+
+    final data = mealDocument.data();
+
+   if (data == null) {
+  if (!mounted) {
+    return;
   }
 
+  setState(() {
+    _firestoreCanOrderNow = false;
+    _checkingOrderWindow = false;
+    _orderStatusText = 'Ordering unavailable';
+  });
+
+  return;
+}
+
+final now = DateTime.now();
+    final orderOpenValue = data['orderOpenAt'];
+    final orderCloseValue = data['orderCloseAt'];
+    final mealDateValue = data['mealDate'];
+
+    final orderOpenAt = orderOpenValue is Timestamp
+        ? orderOpenValue.toDate()
+        : null;
+
+    final orderCloseAt = orderCloseValue is Timestamp
+        ? orderCloseValue.toDate()
+        : null;
+
+    final mealDate = mealDateValue is Timestamp
+        ? mealDateValue.toDate()
+        : null;
+
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
+
+    final normalizedMealDate = mealDate == null
+        ? null
+        : DateTime(
+            mealDate.year,
+            mealDate.month,
+            mealDate.day,
+          );
+
+    final isFutureMeal =
+        normalizedMealDate != null &&
+        normalizedMealDate.isAfter(today);
+
+    final isBeforeOrdering =
+        orderOpenAt != null &&
+        now.isBefore(orderOpenAt);
+
+    final isAfterOrdering =
+        orderCloseAt != null &&
+        !now.isBefore(orderCloseAt);
+
+    final canOrder =
+        !isFutureMeal &&
+        !isBeforeOrdering &&
+        !isAfterOrdering;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+  _firestoreCanOrderNow = canOrder;
+  _checkingOrderWindow = false;
+
+  if (canOrder) {
+    _orderStatusText = 'Add to Basket';
+  } else if (isFutureMeal || isBeforeOrdering) {
+    _orderStatusText = 'Ordering not open yet';
+  } else if (isAfterOrdering) {
+    _orderStatusText = 'Ordering closed';
+  } else {
+    _orderStatusText = 'Ordering unavailable';
+  }
+});
+  } catch (error) {
+  debugPrint(
+    'ORDER WINDOW ERROR: $error',
+  );
+
+  if (!mounted) {
+    return;
+  }
+
+  setState(() {
+    _firestoreCanOrderNow = false;
+    _checkingOrderWindow = false;
+    _orderStatusText = 'Ordering unavailable';
+  });
+}
+}
   double get mealPrice {
-    return double.tryParse(
-          widget.price.replaceAll('£', '').trim(),
-        ) ??
-        0;
-  }
+  return double.tryParse(
+        widget.price.replaceAll('£', '').trim(),
+      ) ??
+      0;
+}
+double get totalPrice => mealPrice * quantity;
+bool get deliveryAvailable {
+  final String fulfilment =
+      widget.deliveryText.toLowerCase().trim();
 
-  double get totalPrice => mealPrice * quantity;
+  return fulfilment.contains('delivery');
+}
+
+bool get collectionAvailable {
+  final String fulfilment =
+      widget.deliveryText.toLowerCase().trim();
+
+  return fulfilment.contains('collection') ||
+      fulfilment.contains('collect');
+}
 
   void increaseQuantity() {
-    setState(() {
-      quantity++;
-    });
+  if (quantity >= widget.portionsLeft) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Only ${widget.portionsLeft} portions are available.',
+          ),
+        ),
+      );
+
+    return;
   }
+
+  setState(() {
+    quantity++;
+  });
+}
 
   void decreaseQuantity() {
     if (quantity <= 1) {
@@ -79,23 +225,32 @@ class _MealDetailsScreenState extends State<MealDetailsScreen> {
     });
   }
 
-  void toggleFavourite() {
-    favouritesData.toggleFavourite({
-      'name': widget.mealName,
-      'cook': widget.cookName,
-      'price': widget.price,
-      'rating': widget.rating,
-      'reviews': widget.reviewCount,
-      'delivery': widget.deliveryText,
-      'emoji': widget.emoji,
-      'imageUrl': widget.imageUrl,
-      'description': widget.description,
-      'ingredients': widget.ingredients,
-      'allergens': widget.allergens,
-    });
+Future<void> toggleFavourite() async {
+  try {
+    await favouritesData.toggleMealFavourite(
+  mealId: widget.mealId,
+  cookId: widget.cookId,
+  name: widget.mealName,
+  cook: widget.cookName,
+  price: widget.price,
+  emoji: widget.emoji,
+  imageUrl: widget.imageUrl,
+  rating: widget.rating,
+  reviewCount: widget.reviewCount,
+  delivery: widget.deliveryText,
+  portionsLeft: widget.portionsLeft,
+  description: widget.description,
+  ingredients: widget.ingredients,
+  allergens: widget.allergens,
+);
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
-      isFavourite = favouritesData.isFavourite(widget.mealName);
+      isFavourite = favouritesData.isMealFavourite(
+        widget.mealId,
+      );
     });
 
     ScaffoldMessenger.of(context)
@@ -110,18 +265,36 @@ class _MealDetailsScreenState extends State<MealDetailsScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
+  } catch (error) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Favourite could not be updated: $error',
+          ),
+        ),
+      );
   }
+}
 void addToBasket() {
   basketData.addItem(
-  mealId: widget.mealId,
-  cookId: widget.cookId,
-  name: widget.mealName,
-  cook: widget.cookName,
-  price: widget.price,
-  emoji: widget.emoji,
-  imageUrl: widget.imageUrl,
-  quantity: quantity,
-);
+    mealId: widget.mealId,
+    cookId: widget.cookId,
+    name: widget.mealName,
+    cook: widget.cookName,
+    price: widget.price,
+    emoji: widget.emoji,
+    deliveryAvailable: deliveryAvailable,
+    collectionAvailable: collectionAvailable,
+    portionsLeft: widget.portionsLeft,
+    imageUrl: widget.imageUrl,
+    quantity: quantity,
+  );
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -133,7 +306,6 @@ void addToBasket() {
       ),
     );
 }
-
 void openBasket() {
   addToBasket();
 
@@ -291,7 +463,26 @@ void openBasket() {
         ),
       ),
       alignment: Alignment.center,
-      child: Text(
+      child: widget.imageUrl != null &&
+        widget.imageUrl!.trim().isNotEmpty
+    ? ClipRRect(
+        borderRadius: BorderRadius.circular(0),
+        child: Image.network(
+          widget.imageUrl!,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Text(
+                widget.emoji,
+                style: const TextStyle(fontSize: 120),
+              ),
+            );
+          },
+        ),
+      )
+    : Text(
         widget.emoji,
         style: const TextStyle(fontSize: 120),
       ),
@@ -325,25 +516,44 @@ void openBasket() {
   }
 
   Widget _buildRatingAndDelivery() {
-    return Wrap(
-      spacing: AppSpacing.small,
-      runSpacing: AppSpacing.small,
-      children: [
-        _buildInformationPill(
-          icon: Icons.star_rounded,
-          iconColor: AppColors.rating,
-          text:
-              '${widget.rating.toStringAsFixed(1)} (${widget.reviewCount} reviews)',
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: AppSpacing.small,
+        runSpacing: AppSpacing.small,
+        children: [
+          _buildInformationPill(
+            icon: Icons.star_rounded,
+            iconColor: Colors.amber,
+            text: widget.reviewCount == 0
+                ? 'No reviews yet'
+                : '${widget.rating.toStringAsFixed(1)} '
+                    '(${widget.reviewCount} reviews)',
+          ),
+          _buildInformationPill(
+            icon: Icons.delivery_dining_rounded,
+            iconColor: AppColors.secondaryDark,
+            text: widget.deliveryText,
+          ),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.regular),
+      Text(
+      widget.portionsLeft <= 5
+    ? 'Only ${widget.portionsLeft} portions left'
+    : '${widget.portionsLeft} portions available',
+        style: TextStyle(
+          color: widget.portionsLeft <= 5
+              ? Colors.red
+              : AppColors.primary,
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
         ),
-        _buildInformationPill(
-          icon: Icons.delivery_dining_rounded,
-          iconColor: AppColors.secondaryDark,
-          text: widget.deliveryText,
-        ),
-      ],
-    );
-  }
-
+      ),
+    ],
+  );
+}
   Widget _buildInformationPill({
     required IconData icon,
     required Color iconColor,
@@ -384,80 +594,96 @@ void openBasket() {
   }
 
   Widget _buildCookInformation() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.regular),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.person_rounded,
-              color: AppColors.primary,
-              size: 32,
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CookProfileScreen(
+              cookId: widget.cookId,
             ),
           ),
-          const SizedBox(width: AppSpacing.regular),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Prepared by',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.cookName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.verified_rounded,
-                      color: AppColors.secondaryDark,
-                      size: 17,
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_rounded,
+                color: AppColors.primary,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.regular),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Prepared by',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
                     ),
-                    SizedBox(width: 5),
-                    Text(
-                      'Verified local cook',
-                      style: TextStyle(
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.cookName,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.verified_rounded,
                         color: AppColors.secondaryDark,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        size: 17,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      SizedBox(width: 5),
+                      Text(
+                        'Verified local cook',
+                        style: TextStyle(
+                          color: AppColors.secondaryDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 18,
-            color: AppColors.textSecondary,
-          ),
-        ],
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildInformationSection({
     required String title,
@@ -641,20 +867,29 @@ void openBasket() {
         child: SizedBox(
           height: 56,
           child: FilledButton(
-            onPressed: openBasket,
+          onPressed: !_checkingOrderWindow &&
+        (_firestoreCanOrderNow ?? false)
+    ? openBasket
+    : null,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.shopping_basket_rounded),
                 const SizedBox(width: AppSpacing.small),
-                const Text('Add to Basket'),
-                const SizedBox(width: AppSpacing.small),
-                Text(
-                  '• £${totalPrice.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+   Text(
+  (_firestoreCanOrderNow ?? false)
+      ? 'Add to Basket'
+      : _orderStatusText,
+),
+if (_firestoreCanOrderNow ?? false) ...[
+  const SizedBox(width: AppSpacing.small),
+  Text(
+    '• £${totalPrice.toStringAsFixed(2)}',
+    style: const TextStyle(
+      fontWeight: FontWeight.w900,
+    ),
+  ),
+  ],
               ],
             ),
           ),

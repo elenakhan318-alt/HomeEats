@@ -12,6 +12,7 @@ import 'active_orders_screen.dart';
 import 'edit_profile_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'contact_homeeats_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -43,7 +44,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-            _buildProfileHeader(),
+            _buildProfileHeader(context),
               const SizedBox(height: AppSpacing.large),
               _buildAccountSection(context),
               const SizedBox(height: AppSpacing.large),
@@ -266,6 +267,21 @@ class ProfileScreen extends StatelessWidget {
           },
         ),
         _buildDivider(),
+        _buildProfileTile(
+  icon: Icons.support_agent_rounded,
+  title: 'Contact HomeEats',
+  subtitle: 'Send a message to the HomeEats team',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            const ContactHomeEatsScreen(),
+      ),
+    );
+  },
+),
+_buildDivider(),
         _buildProfileTile(
           icon: Icons.info_outline_rounded,
           title: 'About',

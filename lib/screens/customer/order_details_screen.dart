@@ -6,6 +6,7 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import 'report_cook_screen.dart';
 import 'rate_order_screen.dart';
+import 'cook_profile_screen.dart';
 
 class OrderDetailsScreen extends StatelessWidget {
   const OrderDetailsScreen({
@@ -56,11 +57,13 @@ class OrderDetailsScreen extends StatelessWidget {
           }
 
           final data = document.data() ?? <String, dynamic>{};
-
+          final bool hasRating =
+    data['hasRating'] as bool? ?? false;
           return _buildOrderDetails(
-            context: context,
-            data: data,
-          );
+  context: context,
+  data: data,
+  hasRating: hasRating,
+);
         },
       ),
     );
@@ -69,6 +72,7 @@ class OrderDetailsScreen extends StatelessWidget {
   Widget _buildOrderDetails({
     required BuildContext context,
     required Map<String, dynamic> data,
+      required bool hasRating,
   }) {
     final status = data['status']?.toString() ?? 'pending';
 
@@ -86,9 +90,23 @@ class OrderDetailsScreen extends StatelessWidget {
     final total = totalValue is num
         ? totalValue.toDouble()
         : double.tryParse(totalValue?.toString() ?? '') ?? 0;
+        final String refundStatus =
+    data['refundStatus']?.toString() ?? '';
+
+final double refundedAmount =
+    (data['refundedAmount'] as num?)?.toDouble() ?? 0;
 
     final itemsValue = data['items'];
     final items = itemsValue is List ? itemsValue : <dynamic>[];
+    final cookIdsValue = data['cookIds'];
+
+final cookIds = cookIdsValue is List
+    ? cookIdsValue
+    : <dynamic>[];
+
+final cookId = cookIds.isNotEmpty
+    ? cookIds.first.toString()
+    : '';
 
     final createdAt = data['createdAt'] as Timestamp?;
 
@@ -99,12 +117,14 @@ class OrderDetailsScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.page),
       children: [
-        _buildSummaryCard(
-          status: status,
-          fulfilmentType: fulfilmentType,
-          total: total,
-          createdDate: createdDate,
-        ),
+      _buildSummaryCard(
+  context: context,
+  cookId: cookId,
+  status: status,
+  fulfilmentType: fulfilmentType,
+  total: total,
+  createdDate: createdDate,
+),
         const SizedBox(height: AppSpacing.regular),
         if (status == 'rejected') ...[
           _buildRejectionCard(
@@ -114,7 +134,11 @@ class OrderDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.regular),
         ],
-        _buildProgressCard(status),
+      _buildProgressCard(
+  status: status,
+  refundStatus: refundStatus,
+  refundedAmount: refundedAmount,
+),
         const SizedBox(height: AppSpacing.regular),
 _buildItemsCard(items),
 const SizedBox(height: AppSpacing.regular),
@@ -123,115 +147,165 @@ _buildTotalCard(total),
 
 if (status == 'completed') ...[
   const SizedBox(height: AppSpacing.regular),
-  _buildRatingCard(context),
+  hasRating
+      ? _buildRatedCard()
+      : _buildRatingCard(context),
 ],
-
 const SizedBox(height: AppSpacing.regular),
 
 _buildSafetyCard(context),
       ],
     );
   }
-
-  Widget _buildSummaryCard({
-    required String status,
-    required String fulfilmentType,
-    required double total,
-    required String createdDate,
-  }) {
-    final isRejected = status == 'rejected';
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.regular),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: isRejected
-                    ? Colors.red.shade100
-                    : AppColors.primaryLight,
-                child: Icon(
-                  isRejected
-                      ? Icons.cancel_outlined
-                      : Icons.receipt_long_outlined,
-                  color: isRejected
-                      ? Colors.red.shade700
-                      : AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.regular),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Order #${_shortOrderId(orderId)}',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _capitalise(fulfilmentType),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '£${total.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: isRejected
-                      ? Colors.red.shade700
-                      : AppColors.primary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(
-              vertical: AppSpacing.regular,
+Widget _buildRatedCard() {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: const Row(
+      children: [
+        Icon(
+          Icons.check_circle_rounded,
+          color: Colors.green,
+        ),
+        SizedBox(width: AppSpacing.small),
+        Expanded(
+          child: Text(
+            'You rated this order',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
-            child: Divider(),
           ),
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_today_outlined,
-                size: 17,
-                color: AppColors.textSecondary,
+        ),
+      ],
+    ),
+  );
+}
+  Widget _buildSummaryCard({
+  required BuildContext context,
+  required String cookId,
+  required String status,
+  required String fulfilmentType,
+  required double total,
+  required String createdDate,
+}) {
+  final isRejected = status == 'rejected';
+
+  return Container(
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: Column(
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: isRejected
+                  ? Colors.red.shade100
+                  : AppColors.primaryLight,
+              child: Icon(
+                isRejected
+                    ? Icons.cancel_outlined
+                    : Icons.receipt_long_outlined,
+                color: isRejected
+                    ? Colors.red.shade700
+                    : AppColors.primary,
               ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  createdDate,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
+            ),
+            const SizedBox(width: AppSpacing.regular),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Order #${_shortOrderId(orderId)}',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _capitalise(fulfilmentType),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '£${total.toStringAsFixed(2)}',
+              style: TextStyle(
+                color: isRejected
+                    ? Colors.red.shade700
+                    : AppColors.primary,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(
+            vertical: AppSpacing.regular,
+          ),
+          child: Divider(),
+        ),
+        Row(
+          children: [
+            const Icon(
+              Icons.calendar_today_outlined,
+              size: 17,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                createdDate,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
                 ),
               ),
-              _buildStatusBadge(status),
-            ],
+            ),
+            _buildStatusBadge(status),
+          ],
+        ),
+        if (cookId.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.regular),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.storefront_rounded),
+              label: const Text('View Cook Profile'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CookProfileScreen(
+                      cookId: cookId,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
-      ),
-    );
-  }
-
+      ],
+    ),
+  );
+}
   Widget _buildRejectionCard({
     required BuildContext context,
     required String rejectionReason,
@@ -371,85 +445,148 @@ _buildSafetyCard(context),
       );
     }
   }
+Widget _buildProgressCard({
+  required String status,
+  required String refundStatus,
+  required double refundedAmount,
+}) {
+  final bool rejected = status == 'rejected';
 
-  Widget _buildProgressCard(String status) {
-    final rejected = status == 'rejected';
+  final bool refundSucceeded =
+      refundStatus.toLowerCase() == 'succeeded' &&
+      refundedAmount > 0;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.regular),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+  return Container(
+    padding: const EdgeInsets.all(AppSpacing.regular),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Order progress',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.regular),
+        if (rejected) ...[
+  Row(
+    children: [
+      CircleAvatar(
+        radius: 16,
+        backgroundColor: Colors.red.shade100,
+        child: Icon(
+          Icons.close_rounded,
+          size: 18,
+          color: Colors.red.shade700,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Order progress',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
+      const SizedBox(width: AppSpacing.regular),
+      const Expanded(
+        child: Text(
+          'This order was rejected by the cook.',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    ],
+  ),
+
+  if (refundSucceeded) ...[
+    const SizedBox(height: AppSpacing.regular),
+    Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CircleAvatar(
+          radius: 16,
+          backgroundColor: Color(0xFFE4F4E7),
+          child: Icon(
+            Icons.check_rounded,
+            size: 18,
+            color: Colors.green,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.regular),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Refund issued - £${refundedAmount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Your payment has been refunded to your original payment method. It may take several business days to appear, depending on your bank.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ],
+]
+else ...[
+          _buildProgressStep(
+            label: 'Payment received',
+            isComplete: true,
+            isLast: false,
+          ),
+          _buildProgressStep(
+            label: 'Order placed',
+            isComplete: _statusIndex(status) >= 0,
+            isLast: false,
+          ),
+          _buildProgressStep(
+            label: 'Accepted',
+            isComplete: _statusIndex(status) >= 1,
+            isLast: false,
+          ),
+          _buildProgressStep(
+            label: 'Preparing',
+            isComplete: _statusIndex(status) >= 2,
+            isLast: false,
+          ),
+          _buildProgressStep(
+            label: 'Ready',
+            isComplete: _statusIndex(status) >= 3,
+            isLast: false,
+          ),
+          _buildProgressStep(
+            label: 'Completed',
+            isComplete: _statusIndex(status) >= 4,
+            isLast: true,
           ),
           const SizedBox(height: AppSpacing.regular),
-          if (rejected)
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.red.shade100,
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 18,
-                    color: Colors.red.shade700,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.regular),
-                const Expanded(
-                  child: Text(
-                    'This order was rejected by the cook.',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else ...[
-            _buildProgressStep(
-              label: 'Order placed',
-              isComplete: _statusIndex(status) >= 0,
-              isLast: false,
+          Text(
+            _statusMessage(status),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+              height: 1.4,
             ),
-            _buildProgressStep(
-              label: 'Accepted',
-              isComplete: _statusIndex(status) >= 1,
-              isLast: false,
-            ),
-            _buildProgressStep(
-              label: 'Preparing',
-              isComplete: _statusIndex(status) >= 2,
-              isLast: false,
-            ),
-            _buildProgressStep(
-              label: 'Ready',
-              isComplete: _statusIndex(status) >= 3,
-              isLast: false,
-            ),
-            _buildProgressStep(
-              label: 'Completed',
-              isComplete: _statusIndex(status) >= 4,
-              isLast: true,
-            ),
-          ],
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildProgressStep({
+      ],
+    ),
+  );
+}
+   Widget _buildProgressStep({
     required String label,
     required bool isComplete,
     required bool isLast,
@@ -780,7 +917,30 @@ Widget _buildSafetyCard(BuildContext context) {
         return 0;
     }
   }
+String _statusMessage(String status) {
+  switch (status) {
+    case 'pending':
+      return 'Your payment has been received. Waiting for the cook to accept your order.';
 
+    case 'accepted':
+      return 'Great news! Your cook has accepted your order.';
+
+    case 'preparing':
+      return 'Your meal is now being freshly prepared.';
+
+    case 'ready':
+      return 'Your order is ready for collection or delivery.';
+
+    case 'completed':
+      return 'Thank you for ordering with HomeEats. We hope you enjoyed your meal!';
+
+    case 'rejected':
+      return 'Unfortunately this order was rejected by the cook.';
+
+    default:
+      return '';
+  }
+}
   String _statusLabel(String status) {
     switch (status) {
       case 'accepted':

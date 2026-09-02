@@ -125,72 +125,88 @@ class OrderHistoryScreen extends StatelessWidget {
   }
 
   Widget _buildOrderCard({
-    required String orderId,
-    required Map<String, dynamic> data,
-  }) {
-    final status =
-        data['status']?.toString() ?? 'pending';
+  required String orderId,
+  required Map<String, dynamic> data,
+}) {
+  final status =
+      data['status']?.toString() ?? 'pending';
 
-    final fulfilmentType =
-        data['fulfilmentType']?.toString() ?? 'collection';
+  final fulfilmentType =
+      data['fulfilmentType']?.toString() ?? 'collection';
 
-    final totalValue = data['total'];
+  final totalValue = data['total'];
 
-    final total = totalValue is num
-        ? totalValue.toDouble()
-        : double.tryParse(totalValue?.toString() ?? '') ?? 0;
+  final total = totalValue is num
+      ? totalValue.toDouble()
+      : double.tryParse(
+            totalValue?.toString() ?? '',
+          ) ??
+          0;
 
-    final createdAt = data['createdAt'] as Timestamp?;
+  final createdAt = data['createdAt'] as Timestamp?;
 
-    final dateText = createdAt == null
-        ? 'Date unavailable'
-        : _formatDate(createdAt.toDate());
+  final dateText = createdAt == null
+      ? 'Date unavailable'
+      : _formatDate(createdAt.toDate());
 
-    final itemsValue = data['items'];
+  final itemsValue = data['items'];
 
-    final items = itemsValue is List
-        ? itemsValue
-        : <dynamic>[];
+  final items = itemsValue is List
+      ? itemsValue
+      : <dynamic>[];
 
-    return Container(
+  return Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(
+      AppRadius.card,
+    ),
+    elevation: 1,
+    child: Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.regular),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+      padding: const EdgeInsets.all(
+        AppSpacing.regular,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               const CircleAvatar(
                 radius: 28,
-                backgroundColor: AppColors.primaryLight,
+                backgroundColor:
+                    AppColors.primaryLight,
                 child: Icon(
                   Icons.receipt_long_outlined,
                   color: AppColors.primary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.regular),
+              const SizedBox(
+                width: AppSpacing.regular,
+              ),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Order #${_shortOrderId(orderId)}',
                       style: const TextStyle(
-                        color: AppColors.textPrimary,
+                        color:
+                            AppColors.textPrimary,
                         fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                        fontWeight:
+                            FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       fulfilmentType,
                       style: const TextStyle(
-                        color: AppColors.textSecondary,
+                        color:
+                            AppColors.textSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -207,24 +223,30 @@ class OrderHistoryScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.regular),
-
+          const SizedBox(
+            height: AppSpacing.regular,
+          ),
           for (final item in items)
             if (item is Map)
               Padding(
-                padding: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.only(
+                  bottom: 6,
+                ),
                 child: Text(
-                  '${item['quantity'] ?? 1} × ${item['name'] ?? 'Meal'}',
+                  '${item['quantity'] ?? 1} × '
+                  '${item['name'] ?? 'Meal'}',
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
+                    color:
+                        AppColors.textPrimary,
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight:
+                        FontWeight.w700,
                   ),
                 ),
               ),
-
-          const SizedBox(height: AppSpacing.small),
-
+          const SizedBox(
+            height: AppSpacing.small,
+          ),
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 10,
@@ -232,7 +254,10 @@ class OrderHistoryScreen extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(AppRadius.pill),
+              borderRadius:
+                  BorderRadius.circular(
+                AppRadius.pill,
+              ),
             ),
             child: Text(
               _statusLabel(status),
@@ -243,14 +268,12 @@ class OrderHistoryScreen extends StatelessWidget {
               ),
             ),
           ),
-
           const Padding(
             padding: EdgeInsets.symmetric(
               vertical: AppSpacing.regular,
             ),
             child: Divider(),
           ),
-
           Row(
             children: [
               const Icon(
@@ -262,30 +285,36 @@ class OrderHistoryScreen extends StatelessWidget {
               Text(
                 dateText,
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color:
+                      AppColors.textSecondary,
                   fontSize: 12,
                 ),
               ),
               const Spacer(),
-              Text(
-                _statusMessage(
-                  status: status,
-                  fulfilmentType: fulfilmentType,
-                ),
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  _statusMessage(
+                    status: status,
+                    fulfilmentType:
+                        fulfilmentType,
+                  ),
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color:
+                        AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight:
+                        FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-
+    ),
+  );
+}
   String _shortOrderId(String orderId) {
     if (orderId.length <= 6) {
       return orderId.toUpperCase();

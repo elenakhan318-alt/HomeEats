@@ -54,8 +54,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final Widget destination;
-
     if (!mounted) {
   return;
 }
@@ -117,9 +115,16 @@ String _firebaseErrorMessage(FirebaseAuthException error) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create account'),
-      ),
+    appBar: AppBar(
+  title: const Text('Create account'),
+  leading: IconButton(
+    tooltip: 'Back to welcome',
+    icon: const Icon(Icons.close_rounded),
+    onPressed: () {
+      Navigator.of(context).pop();
+    },
+  ),
+),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

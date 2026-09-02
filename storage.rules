@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return signedIn() &&
+        firestore.exists(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        );
+    }
+
+    function isAdmin() {
+      return userExists() &&
+        firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.role == 'admin';
+    }
+
+    //
+    // COOK VERIFICATION DOCUMENTS
+    //
+    // Includes:
+    // - Food business registration
+    // - Food hygiene certificate
+    // - Council hygiene rating
+    // - Public liability insurance
+    // - Photo ID
+    // - Cook profile photo
+    //
+    match /cook_verification/{cookId}/{allPaths=**} {
+
+      // Cook can access only their own documents.
+      // Admin can access all Cook verification documents.
+      allow read: if isAdmin() ||
+        (
+          signedIn() &&
+          request.auth.uid == cookId
+        );
+
+      // Cook may upload, replace or remove
+      // only files inside their own folder.
+      //
+      // Admin may also manage verification files.
+      allow write: if isAdmin() ||
+        (
+          signedIn() &&
+          request.auth.uid == cookId &&
+          (
+            request.resource == null ||
+            (
+              request.resource.size <
+                10 * 1024 * 1024 &&
+
+              request.resource.contentType.matches(
+                'application/pdf|image/jpeg|image/png'
+              )
+            )
+          )
+        );
+    }
+
+    //
+    // MEAL IMAGES
+    //
+    // Meal photographs are uploaded and managed
+    // by HomeEats Admin during the beta process.
+    //
+    match /meal_images/{mealId}/{fileName} {
+
+      // Signed-in customers/cooks/admin need
+      // to be able to display meal photographs.
+      allow read: if signedIn();
+
+      // Only Admin may upload, replace
+      // or delete approved meal photographs.
+      allow write: if isAdmin() &&
+        (
+          request.resource == null ||
+          (
+            request.resource.size <
+              10 * 1024 * 1024 &&
+
+            request.resource.contentType.matches(
+              'image/jpeg|image/png|image/webp'
+            )
+          )
+        );
+    }
+
+    //
+    // EVERYTHING ELSE
+    //
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

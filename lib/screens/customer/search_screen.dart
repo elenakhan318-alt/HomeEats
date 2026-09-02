@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -16,70 +17,18 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController searchController = TextEditingController();
 
   String selectedCuisine = 'All';
+  bool isDeliverySelected = true;
 
-  final List<Map<String, dynamic>> meals = [
-    {
-      'name': 'Chicken Biryani',
-      'cook': "Amina's Kitchen",
-      'price': '£9.95',
-      'rating': 4.9,
-      'reviews': 128,
-      'delivery': 'Delivery • 25 mins',
-      'emoji': '🍛',
-      'cuisine': 'Pakistani',
-      'description':
-          'A fragrant homemade chicken biryani prepared with tender chicken, basmati rice, warming spices and fresh herbs.',
-      'ingredients': [
-        'Chicken',
-        'Basmati rice',
-        'Onion',
-        'Tomato',
-        'Yoghurt',
-        'Fresh herbs',
-        'Biryani spices',
-      ],
-      'allergens': ['Milk'],
-    },
-    {
-      'name': 'Caribbean Jerk Chicken',
-      'cook': "Carla's Kitchen",
-      'price': '£8.95',
-      'rating': 4.8,
-      'reviews': 96,
-      'delivery': 'Delivery • 30 mins',
-      'emoji': '🍗',
-      'cuisine': 'Caribbean',
-      'description':
-          'Spicy jerk chicken served with rice, vegetables and a rich homemade sauce.',
-      'ingredients': [
-        'Chicken',
-        'Rice',
-        'Peppers',
-        'Onion',
-        'Jerk seasoning',
-      ],
-      'allergens': ['None'],
-    },
-    {
-      'name': 'Mediterranean Salad',
-      'cook': "Layla's Table",
-      'price': '£7.50',
-      'rating': 4.7,
-      'reviews': 74,
-      'delivery': 'Delivery • 20 mins',
-      'emoji': '🥗',
-      'cuisine': 'Mediterranean',
-      'description':
-          'A fresh Mediterranean salad with crisp vegetables, herbs and a light dressing.',
-      'ingredients': [
-        'Lettuce',
-        'Tomato',
-        'Cucumber',
-        'Olives',
-        'Fresh herbs',
-      ],
-      'allergens': ['None'],
-    },
+  final List<String> cuisines = const [
+    'All',
+    'Pakistani',
+    'Caribbean',
+    'Mediterranean',
+    'Indian',
+    'Italian',
+    'Chinese',
+    'African',
+    'British',
   ];
 
   @override
@@ -88,52 +37,270 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get filteredMeals {
-    final query = searchController.text.trim().toLowerCase();
+  String _stringValue(dynamic value, {String fallback = ''}) {
+    if (value == null) {
+      return fallback;
+    }
 
-    return meals.where((meal) {
-      final matchesSearch =
-          meal['name'].toString().toLowerCase().contains(query) ||
-          meal['cook'].toString().toLowerCase().contains(query) ||
-          meal['cuisine'].toString().toLowerCase().contains(query);
+    final text = value.toString().trim();
 
-      final matchesCuisine =
-          selectedCuisine == 'All' || meal['cuisine'] == selectedCuisine;
+    if (text.isEmpty) {
+      return fallback;
+    }
 
-      return matchesSearch && matchesCuisine;
-    }).toList();
+    return text;
   }
 
-  void _openMeal(Map<String, dynamic> meal) {
+  int _intValue(dynamic value, {int fallback = 0}) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  double _doubleValue(dynamic value, {double fallback = 0}) {
+    if (value is double) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  String _priceText(dynamic value) {
+    if (value is num) {
+      return '£${value.toDouble().toStringAsFixed(2)}';
+    }
+
+    final text = value?.toString().trim() ?? '';
+
+    if (text.isEmpty) {
+      return '£0.00';
+    }
+
+    if (text.startsWith('£')) {
+      return text;
+    }
+
+    final number = double.tryParse(text);
+
+    if (number != null) {
+      return '£${number.toStringAsFixed(2)}';
+    }
+
+    return text;
+  }
+
+  List<String> _stringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    if (value is String && value.trim().isNotEmpty) {
+      return value
+          .split(',')
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+
+    return <String>[];
+  }
+
+  Future<void> _openMeal(
+  Map<String, dynamic> meal,
+  String mealId,
+  String cookId,
+) async {
+    String cookName = _stringValue(
+  meal['cookName'] ?? meal['cook'],
+  fallback: '',
+);
+
+if (cookName.isEmpty && cookId.isNotEmpty) {
+  final cookDocument = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(cookId)
+      .get();
+
+  final cookData = cookDocument.data();
+
+  cookName = _stringValue(
+  cookData?['businessName'] ??
+      cookData?['fullName'] ??
+      cookData?['displayName'] ??
+      cookData?['name'],
+  fallback: 'Home cook',
+);
+}
+
+if (cookName.isEmpty) {
+  cookName = 'Home cook';
+  }
+    final rating = _doubleValue(meal['rating']);
+
+    final reviewCount = _intValue(
+      meal['reviewCount'] ?? meal['reviews'],
+    );
+    final portionsLeft = _intValue(
+  meal['remainingPortions'] ?? meal['portions'],
+);
+
+final now = DateTime.now();
+
+final mealDateValue = meal['mealDate'];
+final orderOpenValue = meal['orderOpenAt'];
+final orderCloseValue = meal['orderCloseAt'];
+
+final mealDate = mealDateValue is Timestamp
+    ? mealDateValue.toDate()
+    : null;
+
+final orderOpenAt = orderOpenValue is Timestamp
+    ? orderOpenValue.toDate()
+    : null;
+
+final orderCloseAt = orderCloseValue is Timestamp
+    ? orderCloseValue.toDate()
+    : null;
+
+final today = DateTime(
+  now.year,
+  now.month,
+  now.day,
+);
+
+final normalizedMealDate = mealDate == null
+    ? null
+    : DateTime(
+        mealDate.year,
+        mealDate.month,
+        mealDate.day,
+      );
+
+final isFutureMeal =
+    normalizedMealDate != null &&
+    normalizedMealDate.isAfter(today);
+
+final isBeforeOrdering =
+    orderOpenAt != null &&
+    now.isBefore(orderOpenAt);
+
+final isAfterOrdering =
+    orderCloseAt != null &&
+    !now.isBefore(orderCloseAt);
+
+final canOrderNow =
+    !isFutureMeal &&
+    !isBeforeOrdering &&
+    !isAfterOrdering;
+
+final readyTime =
+    meal['readyTimeLabel']?.toString() ??
+    'Time not set';
+
+final cutOffTime =
+    meal['cutOffTimeLabel']?.toString() ??
+    'Time not set';
+    if (!mounted) {
+  return;
+}
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => MealDetailsScreen(
-          mealName: meal['name'],
-          cookName: meal['cook'],
-          price: meal['price'],
-          rating: meal['rating'],
-          reviewCount: meal['reviews'],
-          deliveryText: meal['delivery'],
-          emoji: meal['emoji'],
-          imageUrl: null,
-          description: meal['description'],
-          ingredients: List<String>.from(meal['ingredients']),
-          allergens: List<String>.from(meal['allergens']),
+          mealId: mealId,
+          cookId: cookId,
+          portionsLeft: portionsLeft,
+          mealName: _stringValue(
+            meal['mealName'] ?? meal['name'],
+            fallback: 'Meal',
+          ),
+          cookName: cookName,
+          price: _priceText(meal['price']),
+          rating: rating,
+          reviewCount: reviewCount,
+          deliveryText: isDeliverySelected
+              ? 'Available for delivery'
+              : 'Available for collection',
+          emoji: _stringValue(
+            meal['emoji'],
+            fallback: '🍽️',
+          ),
+          imageUrl: meal['imageUrl']?.toString(),
+          description: _stringValue(
+            meal['description'],
+            fallback: 'No description available.',
+          ),
+          ingredients: _stringList(meal['ingredients']),
+          allergens: _stringList(meal['allergens']),
+          canOrderNow: canOrderNow,
+readyTime: readyTime,
+cutOffTime: cutOffTime,
+          
         ),
       ),
     );
   }
 
+  bool _matchesFilters(Map<String, dynamic> meal) {
+    final query = searchController.text.trim().toLowerCase();
+
+    final name = _stringValue(
+  meal['mealName'] ?? meal['name'],
+).toLowerCase();
+
+    final cookName = _stringValue(
+      meal['cookName'] ?? meal['cook'],
+    ).toLowerCase();
+
+    final cuisine = _stringValue(
+      meal['cuisine'],
+    ).toLowerCase();
+
+    final remainingPortions = _intValue(
+      meal['remainingPortions'] ?? meal['portions'],
+    );
+
+    final deliveryAvailable =
+        meal['deliveryAvailable'] == true;
+
+    final collectionAvailable =
+        meal['collectionAvailable'] == true;
+
+    final matchesSearch =
+        query.isEmpty ||
+        name.contains(query) ||
+        cookName.contains(query) ||
+        cuisine.contains(query);
+
+    final matchesCuisine =
+        selectedCuisine == 'All' ||
+        cuisine == selectedCuisine.toLowerCase();
+
+    final matchesOrderType = isDeliverySelected
+        ? deliveryAvailable
+        : collectionAvailable;
+
+    return remainingPortions > 0 &&
+        matchesSearch &&
+        matchesCuisine &&
+        matchesOrderType;
+  }
+
   @override
   Widget build(BuildContext context) {
-    const cuisines = [
-      'All',
-      'Pakistani',
-      'Caribbean',
-      'Mediterranean',
-    ];
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -142,6 +309,53 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.regular,
+              AppSpacing.page,
+              0,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                        'Delivery',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    selected: isDeliverySelected,
+                    onSelected: (_) {
+                      setState(() {
+                        isDeliverySelected = true;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.small),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                        'Collection',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    selected: !isDeliverySelected,
+                    onSelected: (_) {
+                      setState(() {
+                        isDeliverySelected = false;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.page),
             child: TextField(
@@ -173,11 +387,14 @@ class _SearchScreenState extends State<SearchScreen> {
               scrollDirection: Axis.horizontal,
               itemCount: cuisines.length,
               separatorBuilder: (context, index) {
-                return const SizedBox(width: AppSpacing.small);
+                return const SizedBox(
+                  width: AppSpacing.small,
+                );
               },
               itemBuilder: (context, index) {
                 final cuisine = cuisines[index];
-                final isSelected = selectedCuisine == cuisine;
+                final isSelected =
+                    selectedCuisine == cuisine;
 
                 return ChoiceChip(
                   label: Text(cuisine),
@@ -193,62 +410,169 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           const SizedBox(height: AppSpacing.regular),
           Expanded(
-            child: filteredMeals.isEmpty
-                ? _buildEmptyResults()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.page,
-                      0,
-                      AppSpacing.page,
-                      AppSpacing.page,
-                    ),
-                    itemCount: filteredMeals.length,
-                    separatorBuilder: (context, index) {
-                      return const SizedBox(height: AppSpacing.regular);
-                    },
-                    itemBuilder: (context, index) {
-                      return _buildMealResult(filteredMeals[index]);
-                    },
+            child: StreamBuilder<
+                QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('meals')
+                  .where('active', isEqualTo: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return _buildMessage(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Unable to load meals',
+                    message:
+                        'Please check your connection and try again.',
+                  );
+                }
+
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final mealDocuments = snapshot.data?.docs ?? [];
+
+                final filteredMeals = mealDocuments
+                    .where((document) {
+                      return _matchesFilters(document.data());
+                    })
+                    .toList();
+
+                if (filteredMeals.isEmpty) {
+                  return _buildEmptyResults();
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    0,
+                    AppSpacing.page,
+                    AppSpacing.page,
                   ),
+                  itemCount: filteredMeals.length,
+                  separatorBuilder: (context, index) {
+                    return const SizedBox(
+                      height: AppSpacing.regular,
+                    );
+                  },
+                  itemBuilder: (context, index) {
+ final document = filteredMeals[index];
+final meal = document.data();
+
+return _buildMealResult(
+  meal,
+  document.id,
+  meal['cookId']?.toString() ?? '',
+);
+}
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMealResult(Map<String, dynamic> meal) {
+  Widget _buildMealResult(
+  Map<String, dynamic> meal,
+  String mealId,
+  String cookId,
+) {
+   final mealName = _stringValue(
+  meal['mealName'] ?? meal['name'],
+  fallback: 'Meal',
+);
+    final cookName = _stringValue(
+      meal['cookName'] ?? meal['cook'],
+      fallback: 'Home cook',
+    );
+
+    final emoji = _stringValue(
+      meal['emoji'],
+      fallback: '🍽️',
+    );
+
+    final imageUrl = _stringValue(meal['imageUrl']);
+
+    final rating = _doubleValue(meal['rating']);
+
+    final reviewCount = _intValue(
+      meal['reviewCount'] ?? meal['reviews'],
+    );
+
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(AppRadius.card),
+      borderRadius: BorderRadius.circular(
+        AppRadius.card,
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(
+          AppRadius.card,
+        ),
         onTap: () {
-          _openMeal(meal);
-        },
+  _openMeal(
+  meal,
+  mealId,
+  cookId,
+);
+},
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.regular),
+          padding: const EdgeInsets.all(
+            AppSpacing.regular,
+          ),
           child: Row(
             children: [
-              Container(
-                width: 82,
-                height: 82,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppRadius.medium),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  AppRadius.medium,
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  meal['emoji'],
-                  style: const TextStyle(fontSize: 42),
+                child: Container(
+                  width: 82,
+                  height: 82,
+                  color: AppColors.primaryLight,
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (
+                            context,
+                            error,
+                            stackTrace,
+                          ) {
+                            return Center(
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(
+                                  fontSize: 42,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Center(
+                          child: Text(
+                            emoji,
+                            style: const TextStyle(
+                              fontSize: 42,
+                            ),
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: AppSpacing.regular),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
-                      meal['name'],
+                      mealName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 16,
@@ -256,13 +580,39 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      meal['cook'],
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
+FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  future: cookId.isEmpty
+      ? null
+      : FirebaseFirestore.instance
+          .collection('users')
+          .doc(cookId)
+          .get(),
+  builder: (context, cookSnapshot) {
+    var displayCookName = cookName;
+
+    if (cookSnapshot.hasData) {
+      final cookData = cookSnapshot.data?.data();
+
+      displayCookName = _stringValue(
+        cookData?['businessName'] ??
+            cookData?['fullName'] ??
+            cookData?['displayName'] ??
+            cookData?['name'],
+        fallback: cookName,
+      );
+    }
+
+    return Text(
+      displayCookName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 12,
+      ),
+    );
+  },
+),                    
                     const SizedBox(height: 9),
                     Row(
                       children: [
@@ -273,7 +623,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${meal['rating']}',
+                          rating.toStringAsFixed(1),
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w800,
@@ -281,7 +631,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          '(${meal['reviews']})',
+                          '($reviewCount)',
                           style: const TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 11,
@@ -291,7 +641,9 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      meal['delivery'],
+                      isDeliverySelected
+                          ? 'Available for delivery'
+                          : 'Available for collection',
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -300,8 +652,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   ],
                 ),
               ),
+              const SizedBox(width: AppSpacing.small),
               Text(
-                meal['price'],
+                _priceText(meal['price']),
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 17,
@@ -316,31 +669,55 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildEmptyResults() {
-    return const Center(
+    final orderType = isDeliverySelected
+        ? 'delivery'
+        : 'collection';
+
+    return _buildMessage(
+      icon: Icons.search_off_rounded,
+      title: 'No meals found',
+      message:
+          'No $orderType meals match your search and cuisine filters.',
+    );
+  }
+
+  Widget _buildMessage({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(AppSpacing.page),
+        padding: const EdgeInsets.all(
+          AppSpacing.page,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.search_off_rounded,
+              icon,
               size: 70,
               color: AppColors.textSecondary,
             ),
-            SizedBox(height: AppSpacing.regular),
+            const SizedBox(
+              height: AppSpacing.regular,
+            ),
             Text(
-              'No meals found',
-              style: TextStyle(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            SizedBox(height: AppSpacing.small),
+            const SizedBox(
+              height: AppSpacing.small,
+            ),
             Text(
-              'Try another meal, cook or cuisine.',
+              message,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textSecondary,
               ),
             ),

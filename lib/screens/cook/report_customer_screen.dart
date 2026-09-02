@@ -95,36 +95,30 @@ class _ReportCustomerScreenState
       final complaintReference = FirebaseFirestore.instance
           .collection('complaints')
           .doc(complaintId);
+final existingComplaint =
+    await complaintReference.get();
 
-      await FirebaseFirestore.instance.runTransaction(
-        (transaction) async {
-          final existingComplaint =
-              await transaction.get(complaintReference);
+if (existingComplaint.exists) {
+  _showMessage(
+    'You have already reported this customer for this order.',
+  );
 
-          if (existingComplaint.exists) {
-            throw Exception(
-              'You have already reported this customer for this order.',
-            );
-          }
-
-          transaction.set(
-            complaintReference,
-            {
-              'orderId': widget.orderId,
-              'submittedByUserId': currentUser.uid,
-              'submittedByRole': 'cook',
-              'reportedUserId': customerId,
-              'reportedUserRole': 'customer',
-              'category': _selectedReason,
-              'description': details,
-              'status': 'open',
-              'createdAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
+  return;
+}
+     await complaintReference.set(
+  {
+    'orderId': widget.orderId,
+    'submittedByUserId': currentUser.uid,
+    'submittedByRole': 'cook',
+    'reportedUserId': customerId,
+    'reportedUserRole': 'customer',
+    'category': _selectedReason,
+    'description': details,
+    'status': 'open',
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  },
+);
       if (!mounted) {
         return;
       }

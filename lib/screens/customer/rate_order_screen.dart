@@ -32,159 +32,203 @@ class _RateOrderScreenState extends State<RateOrderScreen> {
   }
 
   Future<void> _submitRating() async {
-    final user = FirebaseAuth.instance.currentUser;
+  final user = FirebaseAuth.instance.currentUser;
 
-    if (user == null) {
-      _showMessage('You must be signed in to submit a rating.');
-      return;
+  if (user == null) {
+    _showMessage(
+      'You must be signed in to submit a rating.',
+    );
+    return;
+  }
+
+  if (_selectedRating == 0) {
+    _showMessage('Please select a star rating.');
+    return;
+  }
+
+  setState(() {
+    _isSubmitting = true;
+  });
+
+  try {
+    final orderReference = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(widget.orderId);
+
+    final orderSnapshot = await orderReference.get();
+
+    if (!orderSnapshot.exists) {
+      throw Exception('Order could not be found.');
     }
 
-    if (_selectedRating == 0) {
-      _showMessage('Please select a star rating.');
-      return;
+    final orderData =
+        orderSnapshot.data() ?? <String, dynamic>{};
+
+    final status =
+        orderData['status']?.toString() ?? '';
+
+    if (status != 'completed') {
+      throw Exception(
+        'Only completed orders can be rated.',
+      );
     }
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    final customerId =
+        orderData['customerId']?.toString() ?? '';
 
-    try {
-      final orderReference = FirebaseFirestore.instance
-          .collection('orders')
-          .doc(widget.orderId);
+    if (customerId != user.uid) {
+      throw Exception(
+        'You can only rate your own order.',
+      );
+    }
 
-      final orderSnapshot = await orderReference.get();
+    final userSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
-      if (!orderSnapshot.exists) {
-        throw Exception('Order could not be found.');
-      }
+    final userData =
+        userSnapshot.data() ?? <String, dynamic>{};
 
-      final orderData =
-          orderSnapshot.data() ?? <String, dynamic>{};
+    final fullName =
+        userData['fullName']?.toString().trim() ?? '';
 
-      final status = orderData['status']?.toString() ?? '';
+    final customerName =
+        fullName.isEmpty ? 'Customer' : fullName;
 
-      if (status != 'completed') {
-        throw Exception(
-          'Only completed orders can be rated.',
-        );
-      }
+    final itemsValue = orderData['items'];
+    final items =
+        itemsValue is List ? itemsValue : <dynamic>[];
 
-      final customerId =
-          orderData['customerId']?.toString() ?? '';
+    String cookId = '';
+    String mealId = '';
+    String mealName = 'Meal';
 
-      if (customerId != user.uid) {
-  throw Exception(
-    'You can only rate your own order.',
-  );
-}
-final userSnapshot = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(user.uid)
-    .get();
+    if (items.isNotEmpty && items.first is Map) {
+      final firstItem =
+          Map<String, dynamic>.from(items.first as Map);
 
-final userData =
-    userSnapshot.data() ?? <String, dynamic>{};
+      cookId =
+          firstItem['cookId']?.toString() ?? '';
 
-final customerName =
-    userData['fullName']?.toString().trim().isNotEmpty == true
-        ? userData['fullName'].toString().trim()
-        : 'Customer';
+      mealId =
+          firstItem['mealId']?.toString() ?? '';
+
+      mealName =
+          firstItem['name']?.toString() ?? 'Meal';
+    }
+
+    if (cookId.isEmpty) {
       final cookIdsValue = orderData['cookIds'];
 
-      String cookId = '';
-
-      if (cookIdsValue is List && cookIdsValue.isNotEmpty) {
+      if (cookIdsValue is List &&
+          cookIdsValue.isNotEmpty) {
         cookId = cookIdsValue.first.toString();
       }
-
-      if (cookId.isEmpty) {
-        final itemsValue = orderData['items'];
-
-        if (itemsValue is List && itemsValue.isNotEmpty) {
-          final firstItem = itemsValue.first;
-
-          if (firstItem is Map) {
-            cookId = firstItem['cookId']?.toString() ?? '';
-          }
-        }
-      }
-
-      if (cookId.isEmpty) {
-        throw Exception(
-          'The cook could not be identified.',
-        );
-      }
-
-      final ratingReference = FirebaseFirestore.instance
-          .collection('ratings')
-          .doc(widget.orderId);
-
-      await FirebaseFirestore.instance.runTransaction(
-        (transaction) async {
-          final existingRating =
-              await transaction.get(ratingReference);
-
-          if (existingRating.exists) {
-            throw Exception(
-              'You have already rated this order.',
-            );
-          }
-
-          transaction.set(
-            ratingReference,
-            {
-            'orderId': widget.orderId,
-'customerId': user.uid,
-'customerName': customerName,
-'cookId': cookId,
-              'rating': _selectedRating,
-              'review': _reviewController.text.trim(),
-              'status': 'published',
-              'createdAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-          );
-
-          transaction.update(
-            orderReference,
-            {
-              'hasRating': true,
-              'ratingValue': _selectedRating,
-              'ratedAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Thank you for your rating.'),
-        ),
-      );
-
-      Navigator.pop(context);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        'Rating could not be submitted: $error',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
     }
+
+    if (cookId.isEmpty) {
+      throw Exception(
+        'The cook could not be identified.',
+      );
+    }
+
+    final ratingReference = FirebaseFirestore.instance
+        .collection('ratings')
+        .doc(widget.orderId);
+
+        final existingRating =
+    await ratingReference.get();
+if (existingRating.exists) {
+  if (!mounted) {
+    return;
   }
+
+  _showMessage(
+    'You have already rated this order.',
+  );
+
+  Navigator.pop(context);
+  return;
+}
+
+    await FirebaseFirestore.instance.runTransaction(
+      (transaction) async {
+        final existingRating =
+            await transaction.get(ratingReference);
+
+        if (existingRating.exists) {
+          throw Exception(
+            'You have already rated this order.',
+          );
+        }
+
+        transaction.set(
+          ratingReference,
+          {
+            'orderId': widget.orderId,
+            'customerId': user.uid,
+            'customerName': customerName,
+            'cookId': cookId,
+            'mealId': mealId,
+            'mealName': mealName,
+            'rating': _selectedRating,
+            'review': _reviewController.text.trim(),
+            'status': 'published',
+            'createdAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        transaction.update(
+          orderReference,
+          {
+            'hasRating': true,
+            'ratingValue': _selectedRating,
+            'ratedAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      },
+    );
+
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Thank you for your rating.',
+        ),
+      ),
+    );
+
+    Navigator.pop(context);
+ } catch (error, stackTrace) {
+  debugPrint('Rating submission error: $error');
+  debugPrint('$stackTrace');
+
+  if (!mounted) {
+    return;
+  }
+
+  _showMessage(
+    'The rating could not be submitted. Please try again.',
+  );
+} finally {
+  if (mounted) {
+    setState(() {
+      _isSubmitting = false;
+    });
+  }
+}
+}
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

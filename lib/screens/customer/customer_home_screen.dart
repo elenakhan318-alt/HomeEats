@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../auth/welcome_screen.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import 'meal_details_screen.dart';
 import 'search_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -14,9 +16,14 @@ class CustomerHomeScreen extends StatefulWidget {
   State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
 }
 
-class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
-  final ScrollController _scrollController = ScrollController();
+class _CustomerHomeScreenState
+    extends State<CustomerHomeScreen> {
+  final ScrollController _scrollController =
+      ScrollController();
+
   bool _isDeliverySelected = true;
+  String? _selectedCuisine;
+  
 
   void _showTemporaryMessage(String message) {
     ScaffoldMessenger.of(context)
@@ -57,15 +64,21 @@ Widget build(BuildContext context) {
               const SizedBox(height: AppSpacing.large),
               _buildOrderTypeSelector(),
               const SizedBox(height: AppSpacing.regular),
-              _buildSearchBar(),
-              const SizedBox(height: AppSpacing.large),
-              _buildPromotionBanner(),
+             _buildSearchBar(),
+
+const SizedBox(height: AppSpacing.large),
+
+_buildCuisineSection(),
+
+const SizedBox(height: AppSpacing.large),
+
+_buildPromotionBanner(),
               const SizedBox(height: AppSpacing.section),
               _buildLiveMeals(),
+              const SizedBox(height: AppSpacing.large),
+_buildUpcomingMeals(),
               const SizedBox(height: AppSpacing.section),
-              _buildCuisineSection(),
-              const SizedBox(height: AppSpacing.section),
-              _buildCookSpotlight(),
+_buildCookSpotlight(),
             ],
           ),
         ),
@@ -79,29 +92,91 @@ void dispose() {
   super.dispose();
 }
   Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.small),
-      child: Row(
-        children: [
-          Text(
-            'Home',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {
-              _showTemporaryMessage('You have no new notifications.');
-            },
-            icon: const Icon(Icons.notifications_none_rounded),
-          ),
-        ],
+  return Padding(
+    padding: const EdgeInsets.only(
+      top: AppSpacing.small,
+    ),
+    child: Row(
+      children: [
+   Text(
+  'Home',
+  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: AppColors.textPrimary,
       ),
-    );
+),
+        const Spacer(),
+        IconButton(
+          tooltip: 'Notifications',
+          onPressed: () {
+            _showTemporaryMessage(
+              'You have no new notifications.',
+            );
+          },
+          icon: const Icon(
+            Icons.notifications_none_rounded,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Sign out',
+          onPressed: () async {
+            final shouldSignOut =
+                await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) {
+                return AlertDialog(
+                  title: const Text('Sign out'),
+                  content: const Text(
+                    'Are you sure you want to '
+                    'sign out of HomeEats?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(
+                          dialogContext,
+                          false,
+                        );
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(
+                          dialogContext,
+                          true,
+                        );
+                      },
+                      child: const Text('Sign out'),
+                    ),
+                  ],
+                );
+              },
+            );
+
+          if (shouldSignOut == true) {
+  await FirebaseAuth.instance.signOut();
+
+  if (!mounted) {
+    return;
   }
 
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (context) => const WelcomeScreen(),
+    ),
+    (route) => false,
+  );
+}
+          },
+          icon: const Icon(
+            Icons.logout_rounded,
+          ),
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildLocation() {
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -155,39 +230,51 @@ void dispose() {
   }
 
   Widget _buildGreeting() {
-    final hour = DateTime.now().hour;
+  final hour = DateTime.now().hour;
+  final user = FirebaseAuth.instance.currentUser;
 
-    String greeting;
+  String greeting;
 
-    if (hour < 12) {
-      greeting = 'Good morning';
-    } else if (hour < 18) {
-      greeting = 'Good afternoon';
-    } else {
-      greeting = 'Good evening';
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$greeting 👋',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: AppSpacing.small),
-        const Text(
-          'What are you craving today?',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 15,
-          ),
-        ),
-      ],
-    );
+  if (hour < 12) {
+    greeting = 'Good morning';
+  } else if (hour < 18) {
+    greeting = 'Good afternoon';
+  } else {
+    greeting = 'Good evening';
   }
+
+  final displayName = user?.displayName?.trim() ?? '';
+
+  final greetingText = displayName.isEmpty
+      ? '$greeting 👋'
+      : '$greeting, $displayName 👋';
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        greetingText,
+        style: Theme.of(context)
+            .textTheme
+            .headlineSmall
+            ?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
+      const SizedBox(
+        height: AppSpacing.small,
+      ),
+      const Text(
+        'What homemade meal are you craving today?',
+        style: TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 15,
+        ),
+      ),
+    ],
+  );
+}
 
   Widget _buildOrderTypeSelector() {
     return Container(
@@ -267,24 +354,27 @@ void dispose() {
       ),
     );
   }
-
-  Widget _buildSearchBar() {
-    return TextField(
-      readOnly: true,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SearchScreen(),
-          ),
-        );
-      },
-      decoration: const InputDecoration(
-        hintText: 'Search meals, cooks or cuisines',
-        prefixIcon: Icon(Icons.search_rounded),
+Widget _buildSearchBar() {
+  return TextField(
+    readOnly: true,
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SearchScreen(),
+        ),
+      );
+    },
+    decoration: const InputDecoration(
+      hintText: 'Search meals, cooks or cuisines',
+      prefixIcon: Icon(
+        Icons.search_rounded,
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 
   Widget _buildPromotionBanner() {
     return Container(
@@ -324,22 +414,22 @@ void dispose() {
                 ),
                 const Spacer(),
                 const Text(
-                  'Authentic Home\nCooked Meals',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 25,
-                    height: 1.05,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+  'Homemade food\nyou can trust.',
+  style: TextStyle(
+    color: Colors.white,
+    fontSize: 25,
+    height: 1.08,
+    fontWeight: FontWeight.w900,
+  ),
+),
                 const SizedBox(height: AppSpacing.small),
                 const Text(
-                  'Freshly prepared by trusted local cooks.',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                  ),
-                ),
+  'Freshly prepared by verified local cooks.',
+  style: TextStyle(
+    color: Colors.white,
+    fontSize: 13,
+  ),
+),
                 const SizedBox(height: AppSpacing.small),
                 FilledButton(
                   onPressed: () {
@@ -365,10 +455,12 @@ void dispose() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeading(
-          title: 'Available Near You',
-          subtitle: 'All meals currently available',
-        ),
+       _buildSectionHeading(
+  title: 'Available Near You',
+  subtitle: _isDeliverySelected
+      ? 'Meals available for delivery'
+      : 'Meals available for collection',
+),
         const SizedBox(height: AppSpacing.regular),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
@@ -393,22 +485,65 @@ void dispose() {
               );
             }
 
-            final meals = snapshot.data?.docs.where((document) {
-                  final data = document.data();
+           final meals = snapshot.data?.docs.where((document) {
+  final data = document.data();
+  final mealDateValue = data['mealDate'];
 
-                  final remainingValue =
-                      data['remainingPortions'] ?? data['portions'];
+if (mealDateValue is! Timestamp) {
+  return false;
+}
 
-                  final remainingPortions = remainingValue is num
-                      ? remainingValue.toInt()
-                      : int.tryParse(
-                            remainingValue?.toString() ?? '',
-                          ) ??
-                          0;
+final mealDate = mealDateValue.toDate();
 
-                  return remainingPortions > 0;
-                }).toList() ??
-                [];
+final now = DateTime.now();
+
+final today = DateTime(
+  now.year,
+  now.month,
+  now.day,
+);
+
+final normalizedMealDate = DateTime(
+  mealDate.year,
+  mealDate.month,
+  mealDate.day,
+);
+
+final isToday = normalizedMealDate == today;
+
+  final remainingValue =
+      data['remainingPortions'] ?? data['portions'];
+
+  final remainingPortions = remainingValue is num
+      ? remainingValue.toInt()
+      : int.tryParse(
+            remainingValue?.toString() ?? '',
+          ) ??
+          0;
+
+ final deliveryAvailable =
+    data['deliveryAvailable'] == true;
+
+final collectionAvailable =
+    data['collectionAvailable'] == true;
+
+final matchesSelectedOrderType = _isDeliverySelected
+    ? deliveryAvailable
+    : collectionAvailable;
+
+final mealCuisine =
+    data['cuisine']?.toString().trim();
+
+final matchesSelectedCuisine =
+    _selectedCuisine == null ||
+    mealCuisine == _selectedCuisine;
+
+return isToday &&
+    remainingPortions > 0 &&
+    matchesSelectedOrderType &&
+    matchesSelectedCuisine;
+}).toList() ??
+    []; 
 
             meals.sort((first, second) {
               final firstTimestamp =
@@ -434,13 +569,14 @@ void dispose() {
             });
 
             if (meals.isEmpty) {
-              return _buildMessageCard(
-                icon: Icons.restaurant_menu_rounded,
-                title: 'No meals available',
-                message:
-                    'There are currently no meals with portions remaining.',
-              );
-            }
+  return _buildMessageCard(
+    icon: Icons.restaurant_menu_rounded,
+    title: 'No meals available',
+    message: _isDeliverySelected
+        ? 'There are currently no delivery meals available.'
+        : 'There are currently no collection meals available.',
+  );
+}
 
             return Column(
               children: [
@@ -467,6 +603,7 @@ void dispose() {
   Widget _buildMealCard({
   required String mealId,
   required Map<String, dynamic> data,
+  bool showMealDate = false,
 }) {
   final mealName =
       data['mealName']?.toString() ?? 'Unnamed meal';
@@ -474,235 +611,714 @@ void dispose() {
   final cookId =
       data['cookId']?.toString() ?? '';
 
+  final cookName =
+      data['cookName']?.toString() ?? 'HomeEats Cook';
+
   final priceValue = data['price'];
 
-    final price = priceValue is num
-        ? priceValue.toDouble()
-        : double.tryParse(priceValue?.toString() ?? '') ?? 0;
+  final price = priceValue is num
+      ? priceValue.toDouble()
+      : double.tryParse(
+            priceValue?.toString() ?? '',
+          ) ??
+          0;
 
-    final portionsValue =
-        data['remainingPortions'] ?? data['portions'];
+  final portionsValue =
+      data['remainingPortions'] ?? data['portions'];
 
-    final portions = portionsValue is num
-        ? portionsValue.toInt()
-        : int.tryParse(portionsValue?.toString() ?? '') ?? 0;
+  final portions = portionsValue is num
+      ? portionsValue.toInt()
+      : int.tryParse(
+            portionsValue?.toString() ?? '',
+          ) ??
+          0;
 
-    final readyTime =
-        data['readyTimeLabel']?.toString() ?? 'Time not set';
+  final readyTime =
+      data['readyTimeLabel']?.toString() ??
+          'Time not set';
+          final cutOffTime =
+    data['cutOffTimeLabel']?.toString() ??
+    'Time not set';
+    final mealDateValue = data['mealDate'];
 
-    final ingredientsText =
-        data['ingredients']?.toString() ?? '';
+String mealDateText = '';
 
-    final allergensText =
-        data['allergens']?.toString() ?? 'None';
+if (mealDateValue is Timestamp) {
+  final mealDate = mealDateValue.toDate();
 
-    final ingredients = ingredientsText
-        .split(',')
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
-    final allergens = allergensText
-        .split(',')
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
+  const dayNames = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
 
-    final deliveryAvailable =
-        data['deliveryAvailable'] == true;
+  mealDateText =
+      '${dayNames[mealDate.weekday - 1]}, '
+      '${mealDate.day} ${monthNames[mealDate.month - 1]}';
+}
+final now = DateTime.now();
 
-    final collectionAvailable =
-        data['collectionAvailable'] == true;
+final orderOpenValue = data['orderOpenAt'];
+final orderCloseValue = data['orderCloseAt'];
 
-    final fulfilmentOptions = <String>[];
+final mealDate = mealDateValue is Timestamp
+    ? mealDateValue.toDate()
+    : null;
 
-    if (deliveryAvailable) {
-      fulfilmentOptions.add('Delivery');
-    }
+final orderOpenAt = orderOpenValue is Timestamp
+    ? orderOpenValue.toDate()
+    : null;
 
-    if (collectionAvailable) {
-      fulfilmentOptions.add('Collection');
-    }
+final orderCloseAt = orderCloseValue is Timestamp
+    ? orderCloseValue.toDate()
+    : null;
 
-    final fulfilmentText = fulfilmentOptions.isEmpty
-        ? 'Fulfilment not specified'
-        : fulfilmentOptions.join(' • ');
+final today = DateTime(
+  now.year,
+  now.month,
+  now.day,
+);
 
-    const placeholderImage =
-        'https://images.unsplash.com/photo-1547592180-85f173990554'
-        '?auto=format&fit=crop&w=1200&q=80';
+final normalizedMealDate = mealDate == null
+    ? null
+    : DateTime(
+        mealDate.year,
+        mealDate.month,
+        mealDate.day,
+      );
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MealDetailsScreen(
-                cookId: cookId,
-                mealName: mealName,
-                cookName: 'HomeEats Cook',
-                price: '£${price.toStringAsFixed(2)}',
-                rating: 5.0,
-                reviewCount: 0,
-                deliveryText:
-                    '$fulfilmentText • Ready $readyTime',
-                emoji: '🍽️',
-                imageUrl: placeholderImage,
-                description:
-                    'A freshly prepared homemade meal available through HomeEats.',
-                ingredients: ingredients.isEmpty
-                    ? const ['See cook for ingredients']
-                    : ingredients,
-                allergens: allergens.isEmpty
-                    ? const ['None listed']
-                    : allergens,
+final isFutureMeal =
+    normalizedMealDate != null &&
+    normalizedMealDate.isAfter(today);
+
+final isBeforeOrdering =
+    orderOpenAt != null &&
+    now.isBefore(orderOpenAt);
+
+final isAfterOrdering =
+    orderCloseAt != null &&
+    !now.isBefore(orderCloseAt);
+
+final canOrderNow =
+    !isFutureMeal &&
+    !isBeforeOrdering &&
+    !isAfterOrdering;
+debugPrint(
+  'ORDER DEBUG: ${data['mealName']} | '
+  'now=$now | '
+  'mealDate=$mealDate | '
+  'orderOpenAt=$orderOpenAt | '
+  'orderCloseAt=$orderCloseAt | '
+  'future=$isFutureMeal | '
+  'before=$isBeforeOrdering | '
+  'after=$isAfterOrdering | '
+  'canOrder=$canOrderNow',
+);
+  final ingredientsText =
+      data['ingredients']?.toString() ?? '';
+
+  final allergensText =
+      data['allergens']?.toString() ?? 'None';
+
+  final ingredients = ingredientsText
+      .split(',')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+
+  final allergens = allergensText
+      .split(',')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+
+  final deliveryAvailable =
+      data['deliveryAvailable'] == true;
+
+  final collectionAvailable =
+      data['collectionAvailable'] == true;
+
+  final fulfilmentOptions = <String>[];
+
+  if (deliveryAvailable) {
+    fulfilmentOptions.add('Delivery');
+  }
+
+  if (collectionAvailable) {
+    fulfilmentOptions.add('Collection');
+  }
+
+  final fulfilmentText =
+      fulfilmentOptions.isEmpty
+          ? 'Fulfilment not specified'
+          : fulfilmentOptions.join(' • ');
+
+final ratingValue = data['averageRating'];
+
+  final rating = ratingValue is num
+      ? ratingValue.toDouble()
+      : double.tryParse(
+            ratingValue?.toString() ?? '',
+          ) ??
+          0;
+
+  final reviewCountValue = data['reviewCount'];
+
+  final reviewCount = reviewCountValue is num
+      ? reviewCountValue.toInt()
+      : int.tryParse(
+            reviewCountValue?.toString() ?? '',
+          ) ??
+          0;
+
+  final isVerified =
+      data['cookVerified'] == true ||
+      data['isCookVerified'] == true;
+
+  const placeholderImage =
+      'https://images.unsplash.com/'
+      'photo-1547592180-85f173990554'
+      '?auto=format&fit=crop&w=1200&q=80';
+
+  final imageUrl =
+      data['imageUrl']?.toString().trim();
+
+  final displayedImage =
+      imageUrl != null && imageUrl.isNotEmpty
+          ? imageUrl
+          : placeholderImage;
+          debugPrint(
+  'MEAL DEBUG: $mealName | $mealId | imageUrl=$imageUrl | displayedImage=$displayedImage',
+);
+
+  return Material(
+    color: AppColors.surface,
+    elevation: 1,
+    shadowColor: AppColors.shadow,
+    borderRadius: BorderRadius.circular(
+      AppRadius.card,
+    ),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(
+        AppRadius.card,
+      ),
+      onTap: () {
+       
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                MealDetailsScreen(
+              mealId: mealId,
+              cookId: cookId,
+              mealName: mealName,
+              cookName: cookName,
+              price:
+                  '£${price.toStringAsFixed(2)}',
+              rating: rating,
+              reviewCount: reviewCount,
+              portionsLeft: portions,
+              deliveryText:
+                  '$fulfilmentText • '
+                  'Ready $readyTime',
+              emoji: '🍽️',
+              imageUrl: displayedImage,
+              description:
+                  data['description']
+                      ?.toString() ??
+                  'A freshly prepared homemade '
+                      'meal available through '
+                      'HomeEats.',
+              ingredients: ingredients.isEmpty
+                  ? const [
+                      'See cook for ingredients',
+                    ]
+                  : ingredients,
+              allergens: allergens.isEmpty
+                  ? const ['None listed']
+                  : allergens,
+                  canOrderNow: canOrderNow,
+readyTime: readyTime,
+cutOffTime: cutOffTime,
+            ),
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(
+          AppSpacing.regular,
+        ),
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(
+                AppRadius.medium,
+              ),
+              child: Image.network(
+                displayedImage,
+                width: 104,
+                height: 112,
+                fit: BoxFit.cover,
+                errorBuilder: (
+                  context,
+                  error,
+                  stackTrace,
+                ) {
+                  debugPrint('MEAL IMAGE ERROR: $error');
+                  return Container(
+                    width: 104,
+                    height: 112,
+                    color: AppColors.primaryLight,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.restaurant_rounded,
+                      color: AppColors.primary,
+                      size: 42,
+                    ),
+                  );
+                },
+                loadingBuilder: (
+                  context,
+                  child,
+                  loadingProgress,
+                ) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
+
+                  return Container(
+                    width: 104,
+                    height: 112,
+                    color: AppColors.primaryLight,
+                    alignment: Alignment.center,
+                    child:
+                        const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.regular),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(
-                    AppRadius.medium,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.restaurant_rounded,
-                  color: AppColors.primary,
-                  size: 42,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.regular),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            mealName,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                            ),
+            const SizedBox(
+              width: AppSpacing.regular,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          mealName,
+                          maxLines: 2,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color:
+                                AppColors.textPrimary,
+                            fontSize: 17,
+                            fontWeight:
+                                FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '£${price.toStringAsFixed(2)}',
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '£${price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 15,
+                          fontWeight:
+                              FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (showMealDate &&
+    mealDateText.isNotEmpty) ...[
+  const SizedBox(height: 4),
+  Text(
+    mealDateText,
+    style: const TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+    ),
+  ),
+],
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          cookName,
+                          overflow:
+                              TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
+                            color:
+                                AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (isVerified) ...[
+                        const SizedBox(width: 5),
+                        const Icon(
+                          Icons.verified_rounded,
+                          size: 16,
+                          color:
+                              AppColors.secondary,
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (rating > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 17,
+                          color: AppColors.rating,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          reviewCount > 0
+                              ? '${rating.toStringAsFixed(1)} '
+                                  '($reviewCount)'
+                              : rating.toStringAsFixed(
+                                  1,
+                                ),
+                          style: const TextStyle(
+                            color:
+                                AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight:
+                                FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 7),
-                    Text(
-                      '$portions portions available',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Ready from $readyTime',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      fulfilmentText,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'View meal details',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
                   ],
-                ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$portions portions available',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 13,
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+  'Ready from $readyTime',
+  style: const TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 12,
+  ),
+),
+const SizedBox(height: 5),
+Text(
+  'Orders close $cutOffTime',
+  style: const TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 12,
+  ),
+),
+const SizedBox(height: 5),
+Text(
+  fulfilmentText,
+                    style: const TextStyle(
+                      color:
+                          AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      Text(
+                        'View meal details',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight:
+                              FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(width: 5),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: AppColors.textSecondary,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCuisineSection() {
-    const cuisines = [
-      ('🍛', 'Pakistani'),
-      ('🍲', 'Indian'),
-      ('🌴', 'Caribbean'),
-      ('🍗', 'Soul Food'),
-      ('🌍', 'African'),
-      ('🍝', 'Italian'),
-      ('🥙', 'Middle Eastern'),
-      ('🫒', 'Mediterranean'),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeading(
-          title: 'Browse by Cuisine',
-          subtitle: 'Discover authentic flavours near you',
-        ),
-        const SizedBox(height: AppSpacing.medium),
-        Wrap(
-          spacing: 9,
-          runSpacing: 10,
-          children: cuisines.map((cuisine) {
-            return ActionChip(
-              avatar: Text(cuisine.$1),
-              label: Text(cuisine.$2),
-              onPressed: () {
-                _showTemporaryMessage(
-                  '${cuisine.$2} filtering is coming next.',
-                );
-              },
+    ),
+  );
+}
+Widget _buildUpcomingMeals() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildSectionHeading(
+        title: 'Upcoming Meals',
+        subtitle: 'See what local cooks are preparing next',
+      ),
+      const SizedBox(height: AppSpacing.regular),
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('meals')
+            .where('active', isEqualTo: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _buildMessageCard(
+              icon: Icons.error_outline_rounded,
+              title: 'Upcoming meals could not be loaded',
+              message: snapshot.error.toString(),
             );
-          }).toList(),
-        ),
-      ],
-    );
-  }
+          }
 
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(
+                  AppSpacing.large,
+                ),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final now = DateTime.now();
+
+          final today = DateTime(
+            now.year,
+            now.month,
+            now.day,
+          );
+
+          final endOfWindow = today.add(
+            const Duration(days: 7),
+          );
+
+          final meals =
+              snapshot.data?.docs.where((document) {
+                    final data = document.data();
+
+                    final mealDateValue =
+                        data['mealDate'];
+
+                    if (mealDateValue is! Timestamp) {
+                      return false;
+                    }
+
+                    final mealDate =
+                        mealDateValue.toDate();
+
+                    final normalizedMealDate =
+                        DateTime(
+                      mealDate.year,
+                      mealDate.month,
+                      mealDate.day,
+                    );
+
+                    final isFuture =
+                        normalizedMealDate
+                            .isAfter(today) &&
+                        normalizedMealDate
+                            .isBefore(endOfWindow);
+
+                    final remainingValue =
+                        data['remainingPortions'] ??
+                            data['portions'];
+
+                    final remainingPortions =
+                        remainingValue is num
+                            ? remainingValue.toInt()
+                            : int.tryParse(
+                                  remainingValue
+                                          ?.toString() ??
+                                      '',
+                                ) ??
+                                0;
+
+                    final deliveryAvailable =
+                        data['deliveryAvailable'] ==
+                            true;
+
+                    final collectionAvailable =
+                        data['collectionAvailable'] ==
+                            true;
+
+                    final matchesSelectedOrderType =
+                        _isDeliverySelected
+                            ? deliveryAvailable
+                            : collectionAvailable;
+
+                    final mealCuisine =
+                        data['cuisine']
+                            ?.toString()
+                            .trim();
+
+                    final matchesSelectedCuisine =
+                        _selectedCuisine == null ||
+                            mealCuisine ==
+                                _selectedCuisine;
+
+                    return isFuture &&
+                        remainingPortions > 0 &&
+                        matchesSelectedOrderType &&
+                        matchesSelectedCuisine;
+                  }).toList() ??
+                  [];
+
+          meals.sort((first, second) {
+            final firstMealDate =
+                first.data()['mealDate']
+                    as Timestamp?;
+
+            final secondMealDate =
+                second.data()['mealDate']
+                    as Timestamp?;
+
+            if (firstMealDate == null &&
+                secondMealDate == null) {
+              return 0;
+            }
+
+            if (firstMealDate == null) {
+              return 1;
+            }
+
+            if (secondMealDate == null) {
+              return -1;
+            }
+
+            return firstMealDate.compareTo(
+              secondMealDate,
+            );
+          });
+
+          if (meals.isEmpty) {
+            return _buildMessageCard(
+              icon: Icons.calendar_month_rounded,
+              title: 'No upcoming meals',
+              message:
+                  'Future meals from local cooks will appear here.',
+            );
+          }
+
+          return Column(
+            children: [
+              for (
+                var index = 0;
+                index < meals.length;
+                index++
+              ) ...[
+                _buildMealCard(
+                  mealId: meals[index].id,
+                  data: meals[index].data(),
+                  showMealDate: true,
+                ),
+                if (index < meals.length - 1)
+                  const SizedBox(
+                    height:
+                        AppSpacing.regular,
+                  ),
+              ],
+            ],
+          );
+        },
+      ),
+    ],
+  );
+}
+  Widget _buildCuisineSection() {
+  const cuisines = [
+    ('🍽️', 'All'),
+    ('🍛', 'Pakistani'),
+    ('🍲', 'Indian'),
+    ('🌴', 'Caribbean'),
+    ('🌍', 'African'),
+    ('🍝', 'Italian'),
+    ('🥙', 'Middle Eastern'),
+    ('🫒', 'Mediterranean'),
+  ];
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildSectionHeading(
+        title: 'Browse by Cuisine',
+        subtitle: 'Discover authentic flavours near you',
+      ),
+      const SizedBox(height: AppSpacing.medium),
+      Wrap(
+        spacing: 9,
+        runSpacing: 10,
+        children: cuisines.map((cuisine) {
+          final isSelected =
+              cuisine.$2 == 'All'
+                  ? _selectedCuisine == null
+                  : _selectedCuisine == cuisine.$2;
+
+          return ChoiceChip(
+            avatar: Text(cuisine.$1),
+            label: Text(cuisine.$2),
+            selected: isSelected,
+            onSelected: (selected) {
+              setState(() {
+                if (cuisine.$2 == 'All') {
+                  _selectedCuisine = null;
+                } else {
+                  _selectedCuisine = cuisine.$2;
+                }
+              });
+            },
+          );
+        }).toList(),
+      ),
+    ],
+  );
+}
   Widget _buildCookSpotlight() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

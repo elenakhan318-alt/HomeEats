@@ -1,0 +1,639 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    //
+    // HELPERS
+    //
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return signedIn() &&
+        exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        );
+    }
+
+    function currentUserData() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isAdmin() {
+      return userExists() &&
+        currentUserData().role == 'admin';
+    }
+
+    function isApprovedCook() {
+      return userExists() &&
+        currentUserData().role == 'cook' &&
+        currentUserData().verified == true &&
+        currentUserData().verificationStatus == 'approved';
+    }
+
+    function isOwner(userId) {
+      return signedIn() &&
+        request.auth.uid == userId;
+    }
+
+    function isOrderCustomer(orderData) {
+      return signedIn() &&
+        orderData.customerId == request.auth.uid;
+    }
+
+    function isOrderCook(orderData) {
+      return signedIn() &&
+        'cookIds' in orderData &&
+        request.auth.uid in orderData.cookIds;
+    }
+
+    function isOrderParticipant(orderData) {
+      return isOrderCustomer(orderData) ||
+        isOrderCook(orderData);
+    }
+
+    function orderExists(orderId) {
+      return exists(
+        /databases/$(database)/documents/orders/$(orderId)
+      );
+    }
+
+    function orderData(orderId) {
+      return get(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+    }
+
+
+    //
+    // USERS
+    //
+
+    match /users/{userId} {
+
+      allow create: if isOwner(userId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.role in [
+          'customer',
+          'cook'
+        ];
+
+      allow read: if isAdmin() ||
+        isOwner(userId) ||
+        (
+          signedIn() &&
+          resource.data.role == 'cook'
+        );
+
+      //
+      // Admin can update any user.
+      //
+      // A normal user can update their own profile,
+      // but cannot give themselves Admin privileges,
+      // Cook approval or verification.
+      //
+      allow update: if isAdmin() ||
+        (
+          isOwner(userId) &&
+
+          request.resource.data.uid ==
+            resource.data.uid &&
+
+          request.resource.data.role ==
+            resource.data.role &&
+
+          //
+          // These fields are Admin controlled.
+          //
+          !request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasAny([
+              'verified',
+              'onboardingStatus',
+              'verificationReviewedAt',
+              'reapplicationAllowed',
+              'foodHygieneRatingReviewStatus',
+              'foodHygieneRatingReviewedAt'
+            ]) &&
+
+          //
+          // Cook may move their verification
+          // only into legitimate submission stages.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'verificationStatus'
+              ]) ||
+            request.resource.data.verificationStatus in [
+              'awaiting_contact',
+              'pending'
+            ]
+          ) &&
+
+          //
+          // Cook may lock documents themselves,
+          // but can never unlock them themselves.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'documentsUnlocked'
+              ]) ||
+            request.resource.data.documentsUnlocked == false
+          ) &&
+
+          //
+          // Cook cannot mark their own setup fee paid.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'setupFeePaid'
+              ]) ||
+            request.resource.data.setupFeePaid == false
+          )
+        );
+
+      allow delete: if isAdmin();
+
+      //
+      // User subcollections such as favourites.
+      //
+      match /{subcollection}/{documentId} {
+        allow read, write:
+          if isOwner(userId) || isAdmin();
+      }
+    }
+
+
+    //
+    // MEALS
+    //
+
+    match /meals/{mealId} {
+
+      allow read: if signedIn();
+
+      //
+      // Only an approved Cook or Admin
+      // can create a meal.
+      //
+      allow create: if isAdmin() ||
+        (
+          isApprovedCook() &&
+          request.resource.data.cookId ==
+            request.auth.uid
+        );
+
+      //
+      // An approved Cook can only update
+      // meals belonging to themselves.
+      //
+      // cookId cannot be transferred.
+      //
+      allow update: if isAdmin() ||
+        (
+          isApprovedCook() &&
+          resource.data.cookId ==
+            request.auth.uid &&
+          request.resource.data.cookId ==
+            resource.data.cookId
+        );
+
+      //
+      // Cook can delete their own meal.
+      //
+      allow delete: if isAdmin() ||
+        (
+          signedIn() &&
+          resource.data.cookId ==
+            request.auth.uid
+        );
+    }
+
+
+    //
+    // ORDERS
+    //
+
+    match /orders/{orderId} {
+
+      //
+      // Customer creates only their own
+      // awaiting-payment order.
+      //
+      allow create: if signedIn() &&
+        request.resource.data.customerId ==
+          request.auth.uid &&
+        request.resource.data.status ==
+          'awaiting_payment' &&
+        request.resource.data.paymentStatus ==
+          'awaiting_payment';
+
+      allow read: if isAdmin() ||
+        isOrderParticipant(resource.data);
+
+      //
+      // Customer may only add/update
+      // rating-related fields.
+      //
+      allow update: if
+        isOrderCustomer(resource.data) &&
+        request.resource.data.customerId ==
+          resource.data.customerId &&
+        request.resource.data.cookIds ==
+          resource.data.cookIds &&
+        request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'hasRating',
+            'ratingValue',
+            'ratedAt',
+            'updatedAt'
+          ]);
+
+      //
+      // Cook may update operational
+      // status fields only.
+      //
+      allow update: if
+        isOrderCook(resource.data) &&
+        request.resource.data.customerId ==
+          resource.data.customerId &&
+        request.resource.data.cookIds ==
+          resource.data.cookIds &&
+        request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'rejectionReason',
+            'acceptedAt',
+            'preparingAt',
+            'readyAt',
+            'completedAt',
+            'rejectedAt',
+            'updatedAt'
+          ]);
+
+      allow update, delete: if isAdmin();
+    }
+
+
+    //
+    // NOTIFICATIONS
+    //
+
+    match /notifications/{notificationId} {
+
+      allow read: if isAdmin() ||
+        (
+          signedIn() &&
+          resource.data.userId ==
+            request.auth.uid
+        );
+
+      //
+      // User may create their own notification.
+      //
+      allow create: if signedIn() &&
+        request.resource.data.userId ==
+          request.auth.uid;
+
+      //
+      // Order participant may create an
+      // order notification for another
+      // participant of that order.
+      //
+      allow create: if signedIn() &&
+        'orderId' in request.resource.data &&
+        orderExists(
+          request.resource.data.orderId
+        ) &&
+        isOrderParticipant(
+          orderData(
+            request.resource.data.orderId
+          )
+        ) &&
+        (
+          request.resource.data.userId ==
+            orderData(
+              request.resource.data.orderId
+            ).customerId ||
+          (
+            'cookIds' in
+              orderData(
+                request.resource.data.orderId
+              ) &&
+            request.resource.data.userId in
+              orderData(
+                request.resource.data.orderId
+              ).cookIds
+          )
+        );
+
+      allow update, delete: if isAdmin() ||
+        (
+          signedIn() &&
+          resource.data.userId ==
+            request.auth.uid &&
+          request.resource.data.userId ==
+            resource.data.userId
+        );
+    }
+
+
+    //
+    // COOK APPLICATIONS
+    //
+
+    match /cookApplications/{applicationId} {
+
+      //
+      // Cook creates only their own application.
+      //
+      // They cannot create Admin review,
+      // approval or readiness fields.
+      //
+      allow create: if signedIn() &&
+        request.resource.data.cookId ==
+          request.auth.uid &&
+
+        !request.resource.data.keys().hasAny([
+          'verified',
+          'reviewNotes',
+          'reviewedBy',
+          'reviewedAt',
+          'readiness',
+          'readinessUpdatedBy',
+          'readinessUpdatedAt',
+          'foodHygieneRatingReviewStatus',
+          'foodHygieneRatingReviewNotes',
+          'foodHygieneRatingReviewedAt',
+          'previousRejection',
+          'reapplicationAllowed',
+          'reapplicationAllowedBy',
+          'reapplicationAllowedAt'
+        ]) &&
+
+        (
+          !(
+            'verificationStatus'
+            in request.resource.data
+          ) ||
+          request.resource.data.verificationStatus in [
+            'draft',
+            'pending'
+          ]
+        ) &&
+
+        (
+          !(
+            'onboardingStatus'
+            in request.resource.data
+          ) ||
+          request.resource.data.onboardingStatus in [
+            'draft',
+            'awaiting_contact'
+          ]
+        ) &&
+
+        (
+          !(
+            'documentsUnlocked'
+            in request.resource.data
+          ) ||
+          request.resource.data.documentsUnlocked == false
+        ) &&
+
+        (
+          !(
+            'setupFeePaid'
+            in request.resource.data
+          ) ||
+          request.resource.data.setupFeePaid == false
+        );
+
+      allow read: if isAdmin() ||
+        (
+          signedIn() &&
+          resource.data.cookId ==
+            request.auth.uid
+        );
+
+      //
+      // Admin may perform all verification
+      // operations.
+      //
+      // Cook may edit their own details,
+      // declarations and documents.
+      //
+      // Cook CANNOT approve themselves,
+      // mark themselves verified,
+      // edit readiness or change Admin reviews.
+      //
+      allow update: if isAdmin() ||
+        (
+          signedIn() &&
+
+          resource.data.cookId ==
+            request.auth.uid &&
+
+          request.resource.data.cookId ==
+            resource.data.cookId &&
+
+          //
+          // Admin-only fields.
+          //
+          !request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasAny([
+              'verified',
+              'reviewNotes',
+              'reviewedBy',
+              'reviewedAt',
+              'readiness',
+              'readinessUpdatedBy',
+              'readinessUpdatedAt',
+              'foodHygieneRatingReviewStatus',
+              'foodHygieneRatingReviewNotes',
+              'foodHygieneRatingReviewedAt',
+              'previousRejection',
+              'reapplicationAllowed',
+              'reapplicationAllowedBy',
+              'reapplicationAllowedAt'
+            ]) &&
+
+          //
+          // Cook may submit/resubmit,
+          // but cannot set approved/rejected/etc.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'verificationStatus'
+              ]) ||
+            request.resource.data.verificationStatus ==
+              'pending'
+          ) &&
+
+          //
+          // Cook can enter awaiting_contact.
+          // Admin controls all later
+          // onboarding states.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'onboardingStatus'
+              ]) ||
+            request.resource.data.onboardingStatus ==
+              'awaiting_contact'
+          ) &&
+
+          //
+          // Only Admin may unlock documents.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'documentsUnlocked'
+              ]) ||
+            request.resource.data.documentsUnlocked ==
+              false
+          ) &&
+
+          //
+          // Cook cannot mark setup fee paid.
+          //
+          (
+            !request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasAny([
+                'setupFeePaid'
+              ]) ||
+            request.resource.data.setupFeePaid ==
+              false
+          )
+        );
+
+      allow delete: if isAdmin();
+    }
+
+
+    //
+    // RATINGS
+    //
+
+    match /ratings/{ratingId} {
+
+      allow read: if signedIn();
+
+      //
+      // Rating document ID must match
+      // the completed order ID.
+      //
+      allow create: if signedIn() &&
+        request.resource.data.customerId ==
+          request.auth.uid &&
+        request.resource.data.orderId ==
+          ratingId &&
+        orderExists(ratingId) &&
+        orderData(ratingId).customerId ==
+          request.auth.uid &&
+        orderData(ratingId).status ==
+          'completed';
+
+      allow update, delete: if isAdmin();
+    }
+
+
+    //
+    // COMPLAINTS
+    //
+
+    match /complaints/{complaintId} {
+
+      allow create: if signedIn();
+
+      allow read: if isAdmin() ||
+        (
+          signedIn() &&
+          (
+            (
+              'userId' in resource.data &&
+              resource.data.userId ==
+                request.auth.uid
+            ) ||
+            (
+              'customerId' in resource.data &&
+              resource.data.customerId ==
+                request.auth.uid
+            ) ||
+            (
+              'reporterId' in resource.data &&
+              resource.data.reporterId ==
+                request.auth.uid
+            ) ||
+            (
+              'submittedByUserId'
+                in resource.data &&
+              resource.data.submittedByUserId ==
+                request.auth.uid
+            ) ||
+            (
+              'cookId' in resource.data &&
+              resource.data.cookId ==
+                request.auth.uid
+            )
+          )
+        );
+
+      allow update, delete: if isAdmin();
+    }
+
+
+    //
+    // BUSINESS SETTINGS
+    //
+
+    match /settings/{settingId} {
+
+      allow read: if signedIn();
+
+      allow create, update, delete:
+        if isAdmin();
+    }
+
+
+    //
+    // EVERYTHING ELSE
+    //
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

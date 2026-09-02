@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'admin_edit_meal_screen.dart';
+
 class AdminMealsScreen extends StatelessWidget {
   const AdminMealsScreen({super.key});
 
@@ -10,7 +12,7 @@ class AdminMealsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('All Meals'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('meals')
             .snapshots(),
@@ -21,13 +23,14 @@ class AdminMealsScreen extends StatelessWidget {
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
             );
           }
 
-          final meals = snapshot.data!.docs;
+          final meals = snapshot.data?.docs ?? [];
 
           if (meals.isEmpty) {
             return const Center(
@@ -37,38 +40,57 @@ class AdminMealsScreen extends StatelessWidget {
 
           return ListView.separated(
             itemCount: meals.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) =>
+                const Divider(height: 1),
             itemBuilder: (context, index) {
-              final meal =
-                  meals[index].data() as Map<String, dynamic>;
+              final mealDocument = meals[index];
+              final meal = mealDocument.data();
 
-              final name = meal['mealName'] ?? 'Unnamed meal';
-              final price = meal['price'] ?? 0;
-              final cookId = meal['cookId'] ?? '';
+              final name =
+                  meal['mealName']?.toString() ??
+                      'Unnamed meal';
+
+              final priceValue = meal['price'];
+              final price = priceValue is num
+                  ? priceValue.toDouble()
+                  : double.tryParse(
+                        priceValue?.toString() ?? '',
+                      ) ??
+                      0;
+
+              final cookId =
+                  meal['cookId']?.toString() ?? '';
 
               final ingredients =
-                  meal['ingredients'] ?? 'Not provided';
+                  meal['ingredients']?.toString() ??
+                      'Not provided';
 
               final allergens =
-                  meal['allergens'] ?? 'None';
+                  meal['allergens']?.toString() ??
+                      'None';
 
               final portions =
                   meal['remainingPortions'] ??
-                  meal['portions'] ??
-                  0;
+                      meal['portions'] ??
+                      0;
 
               final readyTime =
-                  meal['readyTimeLabel'] ??
-                  'Not provided';
+                  meal['readyTimeLabel']?.toString() ??
+                      'Not provided';
 
               final cutOffTime =
-                  meal['cutOffTimeLabel'] ??
-                  'Not provided';
+                  meal['cutOffTimeLabel']?.toString() ??
+                      'Not provided';
 
               final status =
-                  meal['status'] ?? 'Unknown';
+                  meal['status']?.toString() ??
+                      'Unknown';
 
-              return FutureBuilder<DocumentSnapshot>(
+              final isActive =
+                  meal['active'] != false;
+
+              return FutureBuilder<
+                  DocumentSnapshot<Map<String, dynamic>>>(
                 future: FirebaseFirestore.instance
                     .collection('users')
                     .doc(cookId)
@@ -76,92 +98,291 @@ class AdminMealsScreen extends StatelessWidget {
                 builder: (context, cookSnapshot) {
                   String cookName = 'Unknown cook';
 
-                  if (cookSnapshot.hasData) {
-                    final cookData =
-                        cookSnapshot.data!.data()
-                            as Map<String, dynamic>?;
+                  final cookData =
+                      cookSnapshot.data?.data();
 
+                  if (cookData != null) {
                     cookName =
-                        cookData?['fullName'] ??
-                        cookData?['email'] ??
-                        'Unknown cook';
+                        cookData['fullName']?.toString() ??
+                            cookData['email']?.toString() ??
+                            'Unknown cook';
                   }
 
                   return ListTile(
-                    leading: const Icon(
-                      Icons.restaurant_menu,
+                    leading: Icon(
+                      isActive
+                          ? Icons.restaurant_menu
+                          : Icons.visibility_off_rounded,
+                      color: isActive
+                          ? Colors.green
+                          : Colors.grey,
                     ),
                     title: Text(name),
-                    subtitle: Text(
-                      '£$price • $cookName',
+                    subtitle: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '£${price.toStringAsFixed(2)} • $cookName',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isActive
+                              ? 'Visible'
+                              : 'Hidden',
+                          style: TextStyle(
+                            color: isActive
+                                ? Colors.green
+                                : Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Edit meal',
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                          ),
+                          onPressed: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    AdminEditMealScreen(
+                                  mealId:
+                                      mealDocument.id,
+                                  mealData: meal,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          tooltip: isActive
+                              ? 'Hide meal'
+                              : 'Show meal',
+                          icon: Icon(
+                            isActive
+                                ? Icons
+                                    .visibility_off_rounded
+                                : Icons
+                                    .visibility_rounded,
+                          ),
+                          onPressed: () async {
+                            await mealDocument.reference
+                                .update({
+                              'active': !isActive,
+                              'updatedAt':
+                                  FieldValue
+                                      .serverTimestamp(),
+                            });
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Delete meal',
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.red,
+                          ),
+                          onPressed: () async {
+                            final shouldDelete =
+                                await showDialog<bool>(
+                              context: context,
+                              builder: (
+                                dialogContext,
+                              ) {
+                                return AlertDialog(
+                                  title: const Text(
+                                    'Delete meal',
+                                  ),
+                                  content: Text(
+                                    'Are you sure you want to permanently delete "$name"?\n\nThis action cannot be undone.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(
+                                          dialogContext,
+                                          false,
+                                        );
+                                      },
+                                      child:
+                                          const Text(
+                                        'Cancel',
+                                      ),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () {
+                                        Navigator.pop(
+                                          dialogContext,
+                                          true,
+                                        );
+                                      },
+                                      child:
+                                          const Text(
+                                        'Delete',
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+
+                            if (shouldDelete == true) {
+                              try {
+                                await mealDocument.reference
+                                    .delete();
+
+                                if (!context.mounted) {
+                                  return;
+                                }
+
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '$name deleted',
+                                    ),
+                                  ),
+                                );
+                              } catch (error) {
+                                if (!context.mounted) {
+                                  return;
+                                }
+
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Meal could not be deleted: $error',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
                     ),
                     onTap: () {
-                      showDialog(
+                      showDialog<void>(
                         context: context,
-                        builder: (dialogContext) {
+                        builder: (
+                          dialogContext,
+                        ) {
                           return AlertDialog(
                             title: Text(name),
-                            content: SingleChildScrollView(
+                            content:
+                                SingleChildScrollView(
                               child: Column(
                                 mainAxisSize:
                                     MainAxisSize.min,
                                 crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                    CrossAxisAlignment
+                                        .start,
                                 children: [
-                                  Text('Price: £$price'),
-                                  const SizedBox(height: 8),
-                                  Text('Cook: $cookName'),
-                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Price: £${price.toStringAsFixed(2)}',
+                                  ),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
+                                  Text(
+                                    'Cook: $cookName',
+                                  ),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
+                                  Text(
+                                    'Visibility: ${isActive ? 'Visible' : 'Hidden'}',
+                                  ),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
                                   Text(
                                     'Ingredients: $ingredients',
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
                                   Text(
                                     'Allergens: $allergens',
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
                                   Text(
                                     'Remaining portions: $portions',
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
                                   Text(
                                     'Ready time: $readyTime',
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
                                   Text(
                                     'Cut-off time: $cutOffTime',
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text('Status: $status'),
+                                  const SizedBox(
+                                    height: 8,
+                                  ),
+                                  Text(
+                                    'Status: $status',
+                                  ),
                                 ],
                               ),
                             ),
-                          actions: [
-  TextButton(
-    onPressed: () async {
-      final isActive = meal['active'] ?? true;
+                            actions: [
+                              TextButton.icon(
+                                onPressed: () async {
+                                  await mealDocument
+                                      .reference
+                                      .update({
+                                    'active':
+                                        !isActive,
+                                    'updatedAt':
+                                        FieldValue
+                                            .serverTimestamp(),
+                                  });
 
-      await meals[index].reference.update({
-        'active': !isActive,
-      });
-
-      if (dialogContext.mounted) {
-        Navigator.pop(dialogContext);
-      }
-    },
-    child: Text(
-      (meal['active'] ?? true)
-          ? 'Hide Meal'
-          : 'Unhide Meal',
-    ),
-  ),
-  TextButton(
-    onPressed: () {
-      Navigator.pop(dialogContext);
-    },
-    child: const Text('Close'),
-  ),
-],
+                                  if (dialogContext
+                                      .mounted) {
+                                    Navigator.pop(
+                                      dialogContext,
+                                    );
+                                  }
+                                },
+                                icon: Icon(
+                                  isActive
+                                      ? Icons
+                                          .visibility_off_rounded
+                                      : Icons
+                                          .visibility_rounded,
+                                ),
+                                label: Text(
+                                  isActive
+                                      ? 'Hide Meal'
+                                      : 'Show Meal',
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(
+                                    dialogContext,
+                                  );
+                                },
+                                child:
+                                    const Text('Close'),
+                              ),
+                            ],
                           );
                         },
                       );

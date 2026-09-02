@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'favourites_data.dart';
 
 import '../../theme/app_colors.dart';
 import 'basket_screen.dart';
@@ -20,6 +21,12 @@ class CustomerMainScreen extends StatefulWidget {
 class _CustomerMainScreenState
     extends State<CustomerMainScreen> {
   int _selectedIndex = 0;
+  @override
+void initState() {
+  super.initState();
+
+  favouritesData.loadFavourites();
+}
 
   final List<Widget> _pages = const [
   CustomerHomeScreen(),
@@ -28,11 +35,49 @@ class _CustomerMainScreenState
   NotificationsScreen(),
   ProfileScreen(),
 ];
-  void _changePage(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+Future<void> _markNotificationsAsRead() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return;
   }
+
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: user.uid)
+        .where('isRead', isEqualTo: false)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final document in snapshot.docs) {
+      batch.update(document.reference, {
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  } catch (error) {
+    debugPrint(
+      'Notifications could not be marked as read: $error',
+    );
+  }
+}
+  void _changePage(int index) {
+  setState(() {
+    _selectedIndex = index;
+  });
+
+  if (index == 3) {
+    _markNotificationsAsRead();
+  }
+}
 
   @override
   Widget build(BuildContext context) {

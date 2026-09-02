@@ -5,46 +5,69 @@ class BasketData extends ChangeNotifier {
 
   List<Map<String, dynamic>> get basketItems => _basketItems;
 
-  void addItem({
-    required String mealId,
-    required String cookId,
-    required String name,
-    required String cook,
-    required String price,
-    required String emoji,
-    String? imageUrl,
-    int quantity = 1,
-  }) {
-    final int existingIndex = _basketItems.indexWhere(
-      (item) => item['mealId'] == mealId,
-    );
+void addItem({
+  required String mealId,
+  required String cookId,
+  required String name,
+  required String cook,
+  required String price,
+  required String emoji,
+  required bool deliveryAvailable,
+  required bool collectionAvailable,
+  required int portionsLeft,
+  String? imageUrl,
+  int quantity = 1,
+}) {
+  final int existingIndex = _basketItems.indexWhere(
+    (item) => item['mealId'] == mealId,
+  );
 
-    final double priceValue =
-        double.tryParse(price.replaceAll('£', '').trim()) ?? 0;
+  final double priceValue =
+      double.tryParse(
+        price.replaceAll('£', '').trim(),
+      ) ??
+      0;
 
-    if (existingIndex >= 0) {
-      final int currentQuantity =
-          _basketItems[existingIndex]['quantity'] as int? ?? 1;
+  if (existingIndex >= 0) {
+    final int currentQuantity =
+        _basketItems[existingIndex]['quantity']
+            as int? ??
+        1;
 
-      _basketItems[existingIndex]['quantity'] =
-          currentQuantity + quantity;
-    } else {
-      _basketItems.add({
-        'mealId': mealId,
-        'cookId': cookId,
-        'name': name,
-        'cook': cook,
-        'price': price,
-        'priceValue': priceValue,
-        'emoji': emoji,
-        'imageUrl': imageUrl,
-        'quantity': quantity,
-      });
-    }
+    final int newQuantity =
+        currentQuantity + quantity;
 
-    notifyListeners();
+    _basketItems[existingIndex]['quantity'] =
+        newQuantity > portionsLeft
+            ? portionsLeft
+            : newQuantity;
+
+    _basketItems[existingIndex]['portionsLeft'] =
+        portionsLeft;
+  } else {
+    final int safeQuantity =
+        quantity > portionsLeft
+            ? portionsLeft
+            : quantity;
+
+    _basketItems.add({
+      'mealId': mealId,
+      'cookId': cookId,
+      'name': name,
+      'cook': cook,
+      'price': price,
+      'priceValue': priceValue,
+      'emoji': emoji,
+      'imageUrl': imageUrl,
+      'quantity': safeQuantity,
+      'portionsLeft': portionsLeft,
+      'deliveryAvailable': deliveryAvailable,
+      'collectionAvailable': collectionAvailable,
+    });
   }
 
+  notifyListeners();
+}
   void increaseQuantity(String mealName) {
     final int index = _basketItems.indexWhere(
       (item) => item['name'] == mealName,

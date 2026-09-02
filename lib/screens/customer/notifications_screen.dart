@@ -1,9 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'order_details_screen.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState
+    extends State<NotificationsScreen> {
 
   String _formatDate(DateTime date) {
     const months = [
@@ -40,7 +49,8 @@ class NotificationsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Notifications'),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('notifications')
             .where('userId', isEqualTo: user.uid)
@@ -48,27 +58,36 @@ class NotificationsScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
-              child: Text(
-                'Notifications could not be loaded: ${snapshot.error}',
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Notifications could not be loaded:\n'
+                  '${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
 
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
             );
           }
 
-          final notifications = snapshot.data!.docs;
+          final notifications =
+              snapshot.data?.docs.toList() ?? [];
 
           notifications.sort((first, second) {
             final firstTime =
                 first.data()['createdAt'] as Timestamp?;
+
             final secondTime =
                 second.data()['createdAt'] as Timestamp?;
 
-            if (firstTime == null && secondTime == null) {
+            if (firstTime == null &&
+                secondTime == null) {
               return 0;
             }
 
@@ -92,14 +111,15 @@ class NotificationsScreen extends StatelessWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: notifications.length,
-          separatorBuilder: (context, index) =>
+            separatorBuilder: (context, index) =>
                 const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final document = notifications[index];
               final data = document.data();
 
               final title =
-                  data['title']?.toString() ?? 'Notification';
+                  data['title']?.toString() ??
+                      'Notification';
 
               final message =
                   data['message']?.toString() ?? '';
@@ -118,8 +138,9 @@ class NotificationsScreen extends StatelessWidget {
                   leading: CircleAvatar(
                     child: Icon(
                       isRead
-                          ? Icons.notifications_none
-                          : Icons.notifications_active,
+                          ? Icons.notifications_none_rounded
+                          : Icons
+                              .notifications_active_rounded,
                     ),
                   ),
                   title: Text(
@@ -127,20 +148,36 @@ class NotificationsScreen extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: isRead
                           ? FontWeight.w600
-                          : FontWeight.w800,
+                          : FontWeight.w900,
                     ),
                   ),
                   subtitle: Text(
                     '$message\n$dateText',
                   ),
                   isThreeLine: true,
-                  onTap: () async {
-                    if (!isRead) {
-                      await document.reference.update({
-                        'isRead': true,
-                      });
-                    }
-                  },
+                onTap: () async {
+  final String orderId =
+      data['orderId']?.toString() ?? '';
+
+  if (!isRead) {
+    await document.reference.update({
+      'isRead': true,
+      'readAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  if (!context.mounted || orderId.isEmpty) {
+    return;
+  }
+
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => OrderDetailsScreen(
+        orderId: orderId,
+      ),
+    ),
+  );
+},
                 ),
               );
             },

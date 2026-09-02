@@ -92,35 +92,20 @@ class _ReportCookScreenState extends State<ReportCookScreen> {
           .collection('complaints')
           .doc(complaintId);
 
-      await FirebaseFirestore.instance.runTransaction(
-        (transaction) async {
-          final existingComplaint =
-              await transaction.get(complaintReference);
-
-          if (existingComplaint.exists) {
-            throw Exception(
-              'You have already reported this order.',
-            );
-          }
-
-          transaction.set(
-            complaintReference,
-            {
-              'orderId': widget.orderId,
-              'submittedByUserId': currentUser.uid,
-              'submittedByRole': 'customer',
-              'reportedUserId': cookId,
-              'reportedUserRole': 'cook',
-              'category': _selectedReason,
-              'description': details,
-              'status': 'open',
-              'createdAt': FieldValue.serverTimestamp(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-          );
-        },
-      );
-
+await complaintReference.set(
+  {
+    'orderId': widget.orderId,
+    'submittedByUserId': currentUser.uid,
+    'submittedByRole': 'customer',
+    'reportedUserId': cookId,
+    'reportedUserRole': 'cook',
+    'category': _selectedReason,
+    'description': details,
+    'status': 'open',
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  },
+);
       if (!mounted) {
         return;
       }
