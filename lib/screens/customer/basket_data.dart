@@ -29,22 +29,17 @@ void addItem({
       0;
 
   if (existingIndex >= 0) {
-    final int currentQuantity =
-        _basketItems[existingIndex]['quantity']
-            as int? ??
-        1;
+  final int safeQuantity =
+      quantity > portionsLeft
+          ? portionsLeft
+          : quantity;
 
-    final int newQuantity =
-        currentQuantity + quantity;
+  _basketItems[existingIndex]['quantity'] =
+      safeQuantity;
 
-    _basketItems[existingIndex]['quantity'] =
-        newQuantity > portionsLeft
-            ? portionsLeft
-            : newQuantity;
-
-    _basketItems[existingIndex]['portionsLeft'] =
-        portionsLeft;
-  } else {
+  _basketItems[existingIndex]['portionsLeft'] =
+      portionsLeft;
+} else {
     final int safeQuantity =
         quantity > portionsLeft
             ? portionsLeft

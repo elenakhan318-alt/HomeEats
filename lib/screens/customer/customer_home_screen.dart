@@ -821,49 +821,66 @@ final ratingValue = data['averageRating'];
       borderRadius: BorderRadius.circular(
         AppRadius.card,
       ),
-      onTap: () {
-       
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                MealDetailsScreen(
-              mealId: mealId,
-              cookId: cookId,
-              mealName: mealName,
-              cookName: cookName,
-              price:
-                  '£${price.toStringAsFixed(2)}',
-              rating: rating,
-              reviewCount: reviewCount,
-              portionsLeft: portions,
-              deliveryText:
-                  '$fulfilmentText • '
-                  'Ready $readyTime',
-              emoji: '🍽️',
-              imageUrl: displayedImage,
-              description:
-                  data['description']
-                      ?.toString() ??
-                  'A freshly prepared homemade '
-                      'meal available through '
-                      'HomeEats.',
-              ingredients: ingredients.isEmpty
-                  ? const [
-                      'See cook for ingredients',
-                    ]
-                  : ingredients,
-              allergens: allergens.isEmpty
-                  ? const ['None listed']
-                  : allergens,
-                  canOrderNow: canOrderNow,
-readyTime: readyTime,
-cutOffTime: cutOffTime,
-            ),
-          ),
-        );
-      },
-      child: Padding(
+      onTap: () async {
+  String resolvedCookName = cookName;
+
+  if (cookId.isNotEmpty) {
+    final cookDocument =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(cookId)
+            .get();
+
+    final cookData = cookDocument.data();
+
+    resolvedCookName =
+        cookData?['businessName']?.toString() ??
+            cookData?['fullName']?.toString() ??
+            cookData?['displayName']?.toString() ??
+            cookData?['name']?.toString() ??
+            cookName;
+  }
+
+  if (!mounted) {
+  return;
+}
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) =>
+          MealDetailsScreen(
+        mealId: mealId,
+        cookId: cookId,
+        mealName: mealName,
+        cookName: resolvedCookName,
+        price: '£${price.toStringAsFixed(2)}',
+        rating: rating,
+        reviewCount: reviewCount,
+        portionsLeft: portions,
+        deliveryText:
+            '$fulfilmentText • Ready $readyTime',
+        emoji: '🍽️',
+        imageUrl: displayedImage,
+        description:
+            data['description']?.toString() ??
+                'A freshly prepared homemade meal available through HomeEats.',
+        ingredients: ingredients.isEmpty
+            ? const [
+                'See cook for ingredients',
+              ]
+            : ingredients,
+        allergens: allergens.isEmpty
+            ? const ['None listed']
+            : allergens,
+        canOrderNow: canOrderNow,
+        readyTime: readyTime,
+        cutOffTime: cutOffTime,
+      ),
+    ),
+  );
+},
+child: Padding(
         padding: const EdgeInsets.all(
           AppSpacing.regular,
         ),
@@ -976,19 +993,45 @@ cutOffTime: cutOffTime,
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          cookName,
-                          overflow:
-                              TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color:
-                                AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight:
-                                FontWeight.w700,
-                          ),
-                        ),
-                      ),
+  child: FutureBuilder<
+      DocumentSnapshot<Map<String, dynamic>>>(
+    future: cookId.isEmpty
+        ? null
+        : FirebaseFirestore.instance
+            .collection('users')
+            .doc(cookId)
+            .get(),
+    builder: (context, cookSnapshot) {
+      String displayCookName = cookName;
+
+      if (cookSnapshot.hasData) {
+        final cookData =
+            cookSnapshot.data?.data();
+
+        displayCookName =
+            cookData?['businessName']
+                    ?.toString() ??
+                cookData?['fullName']
+                    ?.toString() ??
+                cookData?['displayName']
+                    ?.toString() ??
+                cookData?['name']
+                    ?.toString() ??
+                cookName;
+      }
+
+      return Text(
+        displayCookName,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    },
+  ),
+),
                       if (isVerified) ...[
                         const SizedBox(width: 5),
                         const Icon(

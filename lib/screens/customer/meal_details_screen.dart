@@ -57,6 +57,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen> {
   bool isFavourite = false;
   bool? _firestoreCanOrderNow;
   bool _checkingOrderWindow = true;
+  int? _livePortionsLeft;
   String _orderStatusText = 'Ordering unavailable';
 
 @override
@@ -70,43 +71,66 @@ void initState() {
 }
 Future<void> _checkCurrentOrderWindow() async {
   try {
-    final mealDocument = await FirebaseFirestore.instance
-        .collection('meals')
-        .doc(widget.mealId)
-        .get();
+    final mealDocument =
+        await FirebaseFirestore.instance
+            .collection('meals')
+            .doc(widget.mealId)
+            .get();
 
     final data = mealDocument.data();
 
-   if (data == null) {
-  if (!mounted) {
-    return;
-  }
+    if (data == null) {
+      if (!mounted) {
+        return;
+      }
 
-  setState(() {
-    _firestoreCanOrderNow = false;
-    _checkingOrderWindow = false;
-    _orderStatusText = 'Ordering unavailable';
-  });
+      setState(() {
+        _livePortionsLeft = 0;
+        _firestoreCanOrderNow = false;
+        _checkingOrderWindow = false;
+        _orderStatusText = 'Ordering unavailable';
+      });
 
-  return;
-}
+      return;
+    }
 
-final now = DateTime.now();
-    final orderOpenValue = data['orderOpenAt'];
-    final orderCloseValue = data['orderCloseAt'];
-    final mealDateValue = data['mealDate'];
+    final remainingValue =
+        data['remainingPortions'] ??
+            data['portions'];
 
-    final orderOpenAt = orderOpenValue is Timestamp
-        ? orderOpenValue.toDate()
-        : null;
+    final int livePortionsLeft =
+        remainingValue is num
+            ? remainingValue.toInt()
+            : int.tryParse(
+                  remainingValue?.toString() ?? '',
+                ) ??
+                0;
 
-    final orderCloseAt = orderCloseValue is Timestamp
-        ? orderCloseValue.toDate()
-        : null;
+    final now = DateTime.now();
 
-    final mealDate = mealDateValue is Timestamp
-        ? mealDateValue.toDate()
-        : null;
+    final orderOpenValue =
+        data['orderOpenAt'];
+
+    final orderCloseValue =
+        data['orderCloseAt'];
+
+    final mealDateValue =
+        data['mealDate'];
+
+    final orderOpenAt =
+        orderOpenValue is Timestamp
+            ? orderOpenValue.toDate()
+            : null;
+
+    final orderCloseAt =
+        orderCloseValue is Timestamp
+            ? orderCloseValue.toDate()
+            : null;
+
+    final mealDate =
+        mealDateValue is Timestamp
+            ? mealDateValue.toDate()
+            : null;
 
     final today = DateTime(
       now.year,
@@ -114,64 +138,77 @@ final now = DateTime.now();
       now.day,
     );
 
-    final normalizedMealDate = mealDate == null
-        ? null
-        : DateTime(
-            mealDate.year,
-            mealDate.month,
-            mealDate.day,
-          );
+    final normalizedMealDate =
+        mealDate == null
+            ? null
+            : DateTime(
+                mealDate.year,
+                mealDate.month,
+                mealDate.day,
+              );
 
     final isFutureMeal =
         normalizedMealDate != null &&
-        normalizedMealDate.isAfter(today);
+            normalizedMealDate.isAfter(today);
 
     final isBeforeOrdering =
         orderOpenAt != null &&
-        now.isBefore(orderOpenAt);
+            now.isBefore(orderOpenAt);
 
     final isAfterOrdering =
         orderCloseAt != null &&
-        !now.isBefore(orderCloseAt);
+            !now.isBefore(orderCloseAt);
 
     final canOrder =
         !isFutureMeal &&
-        !isBeforeOrdering &&
-        !isAfterOrdering;
+            !isBeforeOrdering &&
+            !isAfterOrdering;
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-  _firestoreCanOrderNow = canOrder;
-  _checkingOrderWindow = false;
+      _livePortionsLeft = livePortionsLeft;
 
-  if (canOrder) {
-    _orderStatusText = 'Add to Basket';
-  } else if (isFutureMeal || isBeforeOrdering) {
-    _orderStatusText = 'Ordering not open yet';
-  } else if (isAfterOrdering) {
-    _orderStatusText = 'Ordering closed';
-  } else {
-    _orderStatusText = 'Ordering unavailable';
-  }
-});
+      _firestoreCanOrderNow =
+          canOrder &&
+              livePortionsLeft > 0;
+
+      _checkingOrderWindow = false;
+
+      if (livePortionsLeft <= 0) {
+        _orderStatusText = 'Sold out';
+      } else if (canOrder) {
+        _orderStatusText = 'Add to Basket';
+      } else if (isFutureMeal ||
+          isBeforeOrdering) {
+        _orderStatusText =
+            'Ordering not open yet';
+      } else if (isAfterOrdering) {
+        _orderStatusText =
+            'Ordering closed';
+      } else {
+        _orderStatusText =
+            'Ordering unavailable';
+      }
+    });
   } catch (error) {
-  debugPrint(
-    'ORDER WINDOW ERROR: $error',
-  );
+    debugPrint(
+      'ORDER WINDOW ERROR: $error',
+    );
 
-  if (!mounted) {
-    return;
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _firestoreCanOrderNow = false;
+      _checkingOrderWindow = false;
+      _orderStatusText =
+          'Ordering unavailable';
+    });
   }
-
-  setState(() {
-    _firestoreCanOrderNow = false;
-    _checkingOrderWindow = false;
-    _orderStatusText = 'Ordering unavailable';
-  });
-}
 }
   double get mealPrice {
   return double.tryParse(
@@ -540,16 +577,17 @@ void openBasket() {
       ),
       const SizedBox(height: AppSpacing.regular),
       Text(
-      widget.portionsLeft <= 5
-    ? 'Only ${widget.portionsLeft} portions left'
-    : '${widget.portionsLeft} portions available',
-        style: TextStyle(
-          color: widget.portionsLeft <= 5
-              ? Colors.red
-              : AppColors.primary,
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-        ),
+      (_livePortionsLeft ?? widget.portionsLeft) <= 5
+    ? 'Only ${_livePortionsLeft ?? widget.portionsLeft} portions left'
+    : '${_livePortionsLeft ?? widget.portionsLeft} portions available',
+style: TextStyle(
+  color:
+      (_livePortionsLeft ?? widget.portionsLeft) <= 5
+          ? Colors.red
+          : AppColors.primary,
+  fontSize: 14,
+  fontWeight: FontWeight.w800,
+),
       ),
     ],
   );

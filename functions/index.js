@@ -1971,9 +1971,16 @@ function validateReturnUrl(value) {
         "127.0.0.1"
     );
 
+  const isHomeEatsApp =
+    parsedUrl.protocol ===
+      "homeeats:" &&
+    parsedUrl.hostname ===
+      "payment-success";
+
   if (
     !isSecure &&
-    !isLocal
+    !isLocal &&
+    !isHomeEatsApp
   ) {
     throw new HttpsError(
         "invalid-argument",

@@ -258,8 +258,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     final String successUrl = kIsWeb
-        ? '${Uri.base.origin}/#/payment-success/$orderId'
-        : 'https://home-food-marketplace-5a60f.web.app/#/payment-success/$orderId';
+    ? '${Uri.base.origin}/#/payment-success/$orderId'
+    : 'homeeats://payment-success/$orderId';
 
     final String cancelUrl = kIsWeb
         ? '${Uri.base.origin}/#/checkout'
@@ -279,10 +279,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final String checkoutUrl =
         result.data['checkoutUrl'] as String;
 
-    final bool opened = await launchUrl(
-      Uri.parse(checkoutUrl),
-      mode: LaunchMode.externalApplication,
-    );
+    final bool opened;
+
+if (kIsWeb) {
+  opened = await launchUrl(
+    Uri.parse(checkoutUrl),
+    webOnlyWindowName: '_self',
+  );
+} else {
+  opened = await launchUrl(
+    Uri.parse(checkoutUrl),
+    mode: LaunchMode.externalApplication,
+  );
+}
 
     if (!opened) {
       throw Exception(

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'auth_gate.dart';
 
 import '../../services/auth_service.dart';
 
@@ -48,13 +49,16 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
-      if (!mounted) {
-        return;
-      }
+     if (!mounted) {
+  return;
+}
 
-      Navigator.of(context).popUntil(
-        (route) => route.isFirst,
-      );
+Navigator.of(context).pushAndRemoveUntil(
+  MaterialPageRoute(
+    builder: (context) => const AuthGate(),
+  ),
+  (route) => false,
+);
     } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
