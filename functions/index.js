@@ -26,11 +26,17 @@ initializeApp();
 const stripeSecretKey =
   defineSecret("STRIPE_SECRET_KEY");
 
+const stripeTestSecretKey =
+  defineSecret("STRIPE_TEST_SECRET_KEY");
+
 const stripeWebhookSecret =
   defineSecret("STRIPE_WEBHOOK_SECRET");
 
 const resendApiKey =
   defineSecret("RESEND_API_KEY");
+
+const googleRoutesApiKey =
+  defineSecret("GOOGLE_ROUTES_API_KEY");
 
 const HOME_EATS_ADMIN_EMAIL =
   "homeeats6@gmail.com";
@@ -279,10 +285,29 @@ exports.createStripeCheckoutSession = onCall(
           quantityOrdered;
       }
 
+
+      const deliveryFeeValue =
+  fulfilmentType === "delivery" ?
+    Number(orderData.deliveryFee || 0) :
+    0;
+
+      if (
+        fulfilmentType === "delivery" &&
+  (
+    !Number.isFinite(deliveryFeeValue) ||
+    deliveryFeeValue < 0
+  )
+      ) {
+        throw new HttpsError(
+            "failed-precondition",
+            "The delivery fee is invalid.",
+        );
+      }
+
       const deliveryFeePence =
-        fulfilmentType === "delivery" ?
-          250 :
-          0;
+  Math.round(
+      deliveryFeeValue * 100,
+  );
 
       const amount =
         subtotalPence +
@@ -415,7 +440,13 @@ exports.createStripeCheckoutSession = onCall(
       } catch (error) {
         console.error(
             "Stripe Checkout Session error:",
-            error,
+            {
+              type: error && error.type,
+              code: error && error.code,
+              message: error && error.message,
+              param: error && error.param,
+              statusCode: error && error.statusCode,
+            },
         );
 
         throw new HttpsError(
@@ -1019,6 +1050,431 @@ exports.stripeWebhook = onRequest(
       }
     },
 );
+/*
+ * Transfer eligible completed order earnings
+ * to the cook's Stripe connected account.
+ */
+exports.transferCompletedOrderPayout =
+  onDocumentWritten(
+      {
+        document: "orders/{orderId}",
+        region: "europe-west1",
+        secrets: [stripeSecretKey],
+      },
+      async (event) => {
+        const beforeSnapshot =
+          event.data.before;
+
+        const afterSnapshot =
+          event.data.after;
+
+        if (!afterSnapshot.exists) {
+          return;
+        }
+
+        const beforeData =
+          beforeSnapshot.exists ?
+            beforeSnapshot.data() :
+            {};
+
+        const afterData =
+          afterSnapshot.data() || {};
+        const payoutMode = String(
+            afterData.payoutMode || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        if (payoutMode === "test") {
+          return;
+        }
+
+        const oldStatus = String(
+            beforeData.status || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const newStatus = String(
+            afterData.status || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const paymentStatus = String(
+            afterData.paymentStatus || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const payoutStatus = String(
+            afterData.payoutStatus || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        if (
+          newStatus !== "completed" ||
+          oldStatus === "completed"
+        ) {
+          return;
+        }
+
+        if (
+          paymentStatus !== "paid" ||
+          payoutStatus !== "eligible"
+        ) {
+          return;
+        }
+
+        if (
+          afterData.stripeTransferId
+        ) {
+          return;
+        }
+
+        const cookIds =
+          Array.isArray(
+              afterData.cookIds,
+          ) ?
+            afterData.cookIds :
+            [];
+
+        if (cookIds.length !== 1) {
+          throw new Error(
+              "Order must contain exactly one cook.",
+          );
+        }
+
+        const cookId =
+          String(
+              cookIds[0] || "",
+          ).trim();
+
+        if (!cookId) {
+          throw new Error(
+              "Cook ID is missing.",
+          );
+        }
+
+        const db =
+          getFirestore();
+
+        const cookSnapshot =
+          await db
+              .collection("users")
+              .doc(cookId)
+              .get();
+
+        if (!cookSnapshot.exists) {
+          throw new Error(
+              `Cook ${cookId} does not exist.`,
+          );
+        }
+
+        const cookData =
+          cookSnapshot.data() || {};
+
+        const stripeAccountId =
+          String(
+              cookData
+                  .stripeAccountId ||
+                "",
+          ).trim();
+
+        if (!stripeAccountId) {
+          throw new Error(
+              "Cook Stripe account ID is missing.",
+          );
+        }
+
+        const cookEarningsPence =
+          Number(
+              afterData
+                  .cookGrossEarningsPence ||
+                0,
+          );
+
+        if (
+          !Number.isInteger(
+              cookEarningsPence,
+          ) ||
+          cookEarningsPence <= 0
+        ) {
+          throw new Error(
+              "Cook earnings are invalid.",
+          );
+        }
+
+        const stripe =
+          require("stripe")(
+              stripeSecretKey.value(),
+          );
+
+        const transfer =
+          await stripe.transfers.create(
+              {
+                amount:
+                  cookEarningsPence,
+
+                currency:
+                  String(
+                      afterData.currency ||
+                        "gbp",
+                  )
+                      .trim()
+                      .toLowerCase(),
+
+                destination:
+                  stripeAccountId,
+
+                metadata: {
+                  orderId:
+                    event.params.orderId,
+
+                  cookId,
+                },
+              },
+              {
+                idempotencyKey:
+                  `order_payout_${event.params.orderId}`,
+              },
+          );
+
+        await afterSnapshot.ref.update({
+          payoutStatus:
+            "transferred",
+
+          stripeTransferId:
+            transfer.id,
+
+          payoutTransferredAt:
+            FieldValue
+                .serverTimestamp(),
+
+          updatedAt:
+            FieldValue
+                .serverTimestamp(),
+        });
+
+        console.log(
+            "Cook payout transferred:",
+            event.params.orderId,
+            transfer.id,
+        );
+      },
+  );
+exports.transferCompletedOrderTestPayout =
+  onDocumentWritten(
+      {
+        document: "orders/{orderId}",
+        region: "europe-west1",
+        secrets: [stripeTestSecretKey],
+      },
+      async (event) => {
+        const beforeSnapshot =
+          event.data.before;
+
+        const afterSnapshot =
+          event.data.after;
+
+        if (!afterSnapshot.exists) {
+          return;
+        }
+
+        const beforeData =
+          beforeSnapshot.exists ?
+            beforeSnapshot.data() :
+            {};
+
+        const afterData =
+          afterSnapshot.data() || {};
+
+        const oldStatus = String(
+            beforeData.status || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const newStatus = String(
+            afterData.status || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const paymentStatus = String(
+            afterData.paymentStatus || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const payoutStatus = String(
+            afterData.payoutStatus || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        const payoutMode = String(
+            afterData.payoutMode || "",
+        )
+            .trim()
+            .toLowerCase();
+
+        if (
+          payoutMode !== "test" ||
+          newStatus !== "completed" ||
+          oldStatus === "completed"
+        ) {
+          return;
+        }
+
+        if (
+          paymentStatus !== "paid" ||
+          payoutStatus !== "eligible"
+        ) {
+          return;
+        }
+
+        if (
+          afterData.stripeTestTransferId
+        ) {
+          return;
+        }
+
+        const cookIds =
+          Array.isArray(
+              afterData.cookIds,
+          ) ?
+            afterData.cookIds :
+            [];
+
+        if (cookIds.length !== 1) {
+          throw new Error(
+              "Order must contain exactly one cook.",
+          );
+        }
+
+        const cookId =
+          String(
+              cookIds[0] || "",
+          ).trim();
+
+        if (!cookId) {
+          throw new Error(
+              "Cook ID is missing.",
+          );
+        }
+
+        const db =
+          getFirestore();
+
+        const cookSnapshot =
+          await db
+              .collection("users")
+              .doc(cookId)
+              .get();
+
+        if (!cookSnapshot.exists) {
+          throw new Error(
+              `Cook ${cookId} does not exist.`,
+          );
+        }
+
+        const cookData =
+          cookSnapshot.data() || {};
+
+        const stripeTestAccountId =
+          String(
+              cookData
+                  .stripeTestAccountId ||
+                "",
+          ).trim();
+
+        if (!stripeTestAccountId) {
+          throw new Error(
+              "Cook Stripe test account ID is missing.",
+          );
+        }
+
+        const cookEarningsPence =
+          Number(
+              afterData
+                  .cookGrossEarningsPence ||
+                0,
+          );
+
+        if (
+          !Number.isInteger(
+              cookEarningsPence,
+          ) ||
+          cookEarningsPence <= 0
+        ) {
+          throw new Error(
+              "Cook earnings are invalid.",
+          );
+        }
+
+        const stripe =
+          require("stripe")(
+              stripeTestSecretKey.value(),
+          );
+
+        const transfer =
+          await stripe.transfers.create(
+              {
+                amount:
+                  cookEarningsPence,
+
+                currency:
+                  String(
+                      afterData.currency ||
+                        "gbp",
+                  )
+                      .trim()
+                      .toLowerCase(),
+
+                destination:
+                  stripeTestAccountId,
+
+                metadata: {
+                  orderId:
+                    event.params.orderId,
+
+                  cookId,
+
+                  mode:
+                    "test",
+                },
+              },
+              {
+                idempotencyKey:
+                  `test_order_payout_${event.params.orderId}`,
+              },
+          );
+
+        await afterSnapshot.ref.update({
+          payoutStatus:
+            "test_transferred",
+
+          stripeTestTransferId:
+            transfer.id,
+
+          payoutTestTransferredAt:
+            FieldValue
+                .serverTimestamp(),
+
+          updatedAt:
+            FieldValue
+                .serverTimestamp(),
+        });
+
+        console.log(
+            "Cook test payout transferred:",
+            event.params.orderId,
+            transfer.id,
+        );
+      },
+  );
 /*
  * Automatically refund paid orders rejected by a cook.
  */
@@ -1845,6 +2301,175 @@ exports.updateRatingSummaries = onDocumentWritten(
               [...mealIds],
           },
       );
+    },
+);
+/**
+ * Sends a HomeEats email through Resend.
+ * @param {Object} options Email options.
+ * @param {string} options.to Recipient email.
+ * @param {string} options.subject Email subject.
+ * @param {string} options.html Email body.
+ * @return {Promise<void>}
+ */
+/**
+ * Calculates delivery distance and fee for a HomeEats order.
+ */
+exports.calculateDeliveryFee = onCall(
+    {
+      region: "europe-west1",
+      secrets: [googleRoutesApiKey],
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "You must be signed in to calculate delivery.",
+        );
+      }
+
+      const cookId = String(
+          request.data.cookId || "",
+      ).trim();
+
+      const customerAddress = String(
+          request.data.customerAddress || "",
+      ).trim();
+
+      if (!cookId) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Cook ID is required.",
+        );
+      }
+
+      if (!customerAddress) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Delivery address is required.",
+        );
+      }
+
+      const db = getFirestore();
+
+      const cookApplicationSnapshot =
+        await db
+            .collection("cookApplications")
+            .doc(cookId)
+            .get();
+
+      if (!cookApplicationSnapshot.exists) {
+        throw new HttpsError(
+            "not-found",
+            "Cook delivery address could not be found.",
+        );
+      }
+
+      const cookData =
+        cookApplicationSnapshot.data() || {};
+
+      const businessAddress = String(
+          cookData.businessAddress || "",
+      ).trim();
+
+      const postcode = String(
+          cookData.postcode || "",
+      ).trim();
+
+      const cookAddress =
+        [businessAddress, postcode]
+            .filter((value) => value)
+            .join(", ");
+
+      if (!cookAddress) {
+        throw new HttpsError(
+            "failed-precondition",
+            "The cook does not have a delivery address.",
+        );
+      }
+
+      const response = await fetch(
+          "https://routes.googleapis.com/directions/v2:computeRoutes",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              "X-Goog-Api-Key":
+                googleRoutesApiKey.value(),
+              "X-Goog-FieldMask":
+                "routes.distanceMeters",
+            },
+            body: JSON.stringify({
+              origin: {
+                address: cookAddress,
+              },
+              destination: {
+                address: customerAddress,
+              },
+              travelMode: "DRIVE",
+              routingPreference:
+                "TRAFFIC_UNAWARE",
+            }),
+          },
+      );
+
+      const responseText =
+        await response.text();
+
+      if (!response.ok) {
+        console.error(
+            "Google Routes API error:",
+            response.status,
+            responseText,
+        );
+
+        throw new HttpsError(
+            "internal",
+            "Delivery distance could not be calculated.",
+        );
+      }
+
+      const data =
+        JSON.parse(responseText);
+
+      const distanceMeters =
+        Number(
+            data.routes &&
+            data.routes[0] &&
+            data.routes[0].distanceMeters,
+        );
+
+      if (!Number.isFinite(distanceMeters)) {
+        throw new HttpsError(
+            "internal",
+            "Google did not return a valid delivery distance.",
+        );
+      }
+
+      const distanceMiles =
+        distanceMeters / 1609.344;
+
+      let deliveryFee = 0;
+      let deliveryAvailable = true;
+
+      if (distanceMiles <= 1) {
+        deliveryFee = 1.50;
+      } else if (distanceMiles <= 2) {
+        deliveryFee = 2.00;
+      } else if (distanceMiles <= 3) {
+        deliveryFee = 2.50;
+      } else {
+        deliveryAvailable = false;
+      }
+
+      return {
+        deliveryAvailable,
+        deliveryFee,
+        distanceMiles:
+          Number(
+              distanceMiles.toFixed(2),
+          ),
+      };
     },
 );
 /**

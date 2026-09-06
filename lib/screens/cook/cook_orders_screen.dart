@@ -376,339 +376,351 @@ final orders =
                     ),
                 ],
               ),
-              if (status == 'pending') ...[
-                const SizedBox(
-                  height: AppSpacing.regular,
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          _showRejectDialog(
-                            context: context,
-                            orderId: orderId,
-                          );
-                        },
-                        child:
-                            const Text('Reject'),
-                      ),
-                    ),
-                    const SizedBox(
-                      width: AppSpacing.small,
-                    ),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          _updateStatus(
-                            context: context,
-                            orderId: orderId,
-                            status: 'accepted',
-                          );
-                        },
-                        child:
-                            const Text('Accept'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              if (status == 'accepted') ...[
-                const SizedBox(
-                  height: AppSpacing.regular,
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      _updateStatus(
-                        context: context,
-                        orderId: orderId,
-                        status: 'preparing',
-                      );
-                    },
-                    child: const Text(
-                      'Start Preparing',
-                    ),
-                  ),
-                ),
-              ],
-              if (status == 'preparing') ...[
-                const SizedBox(
-                  height: AppSpacing.regular,
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      _updateStatus(
-                        context: context,
-                        orderId: orderId,
-                        status: 'ready',
-                      );
-                    },
-                    child:
-                        const Text('Mark Ready'),
-                  ),
-                ),
-              ],
-              if (status == 'ready') ...[
-                const SizedBox(
-                  height: AppSpacing.regular,
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      _updateStatus(
-                        context: context,
-                        orderId: orderId,
-                        status: 'completed',
-                      );
-                    },
-                    child: const Text(
-                      'Complete Order',
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(
-                height: AppSpacing.regular,
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            ReportCustomerScreen(
-                          orderId: orderId,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.flag_outlined,
-                  ),
-                  label: const Text(
-                    'Report customer',
-                  ),
-                ),
-              ),
-            ],
+             if (status == 'pending') ...[
+  const SizedBox(
+    height: AppSpacing.regular,
+  ),
+  Row(
+    children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: () {
+            _showRejectDialog(
+              context: context,
+              orderId: orderId,
+            );
+          },
+          child: const Text('Reject'),
+        ),
+      ),
+      const SizedBox(
+        width: AppSpacing.small,
+      ),
+      Expanded(
+        child: FilledButton(
+          onPressed: () {
+            _updateStatus(
+              context: context,
+              orderId: orderId,
+              status: 'accepted',
+            );
+          },
+          child: const Text('Accept'),
+        ),
+      ),
+    ],
+  ),
+],
+if (status == 'accepted') ...[
+  const SizedBox(
+    height: AppSpacing.regular,
+  ),
+  SizedBox(
+    width: double.infinity,
+    child: FilledButton(
+      onPressed: () {
+        _updateStatus(
+          context: context,
+          orderId: orderId,
+          status: 'preparing',
+        );
+      },
+      child: const Text(
+        'Start Preparing',
+      ),
+    ),
+  ),
+],
+if (status == 'preparing') ...[
+  const SizedBox(
+    height: AppSpacing.regular,
+  ),
+  SizedBox(
+    width: double.infinity,
+    child: FilledButton(
+      onPressed: () {
+        _updateStatus(
+          context: context,
+          orderId: orderId,
+          status: 'ready',
+        );
+      },
+      child: const Text('Mark Ready'),
+    ),
+  ),
+],
+if (status == 'ready') ...[
+  const SizedBox(
+    height: AppSpacing.regular,
+  ),
+  SizedBox(
+    width: double.infinity,
+    child: FilledButton(
+      onPressed: () {
+        _updateStatus(
+          context: context,
+          orderId: orderId,
+          status: 'completed',
+        );
+      },
+      child: const Text(
+        'Complete Order',
+      ),
+    ),
+  ),
+],
+const SizedBox(
+  height: AppSpacing.regular,
+),
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ReportCustomerScreen(
+            orderId: orderId,
           ),
+        ),
+      );
+    },
+    icon: const Icon(
+      Icons.flag_outlined,
+    ),
+    label: const Text(
+      'Report customer',
+    ),
+  ),
+),
+],
+),
+),
+),
+);
+}
+
+Future<void> _showRejectDialog({
+  required BuildContext context,
+  required String orderId,
+}) async {
+  final TextEditingController controller =
+      TextEditingController();
+
+  final String? reason =
+      await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Reject order'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration:
+              const InputDecoration(
+            labelText:
+                'Reason for rejection',
+            hintText:
+                'Tell the customer why...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(
+                dialogContext,
+              ).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final String text =
+                  controller.text.trim();
+
+              if (text.isEmpty) {
+                return;
+              }
+
+              Navigator.of(
+                dialogContext,
+              ).pop(text);
+            },
+            child: const Text('Reject'),
+          ),
+        ],
+      );
+    },
+  );
+
+  controller.dispose();
+
+  if (reason == null || reason.isEmpty) {
+    return;
+  }
+
+  if (!context.mounted) {
+    return;
+  }
+
+  try {
+    await _updateStatus(
+      context: context,
+      orderId: orderId,
+      status: 'rejected',
+      rejectionReason: reason,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text('Order rejected'),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order could not be rejected: '
+          '$error',
         ),
       ),
     );
   }
+}
 
-  Future<void> _showRejectDialog({
-    required BuildContext context,
-    required String orderId,
-  }) async {
-    final TextEditingController controller =
-        TextEditingController();
+Future<void> _updateStatus({
+  required BuildContext context,
+  required String orderId,
+  required String status,
+  String? rejectionReason,
+}) async {
+  try {
+    final orderReference =
+        FirebaseFirestore.instance
+            .collection('orders')
+            .doc(orderId);
 
-    final String? reason =
-        await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Reject order'),
-          content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Reason for rejection',
-              hintText:
-                  'Tell the customer why...',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(
-                  dialogContext,
-                ).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final String text =
-                    controller.text.trim();
-
-                if (text.isEmpty) {
-                  return;
-                }
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(text);
-              },
-              child: const Text('Reject'),
-            ),
-          ],
+    await FirebaseFirestore.instance
+        .runTransaction(
+      (transaction) async {
+        final orderSnapshot =
+            await transaction.get(
+          orderReference,
         );
+
+        final orderData =
+            orderSnapshot.data() ??
+                <String, dynamic>{};
+
+        final String customerId =
+            orderData['customerId']
+                    ?.toString() ??
+                '';
+
+        final String paymentStatus =
+            orderData['paymentStatus']
+                    ?.toString()
+                    .trim()
+                    .toLowerCase() ??
+                '';
+
+        final Map<String, dynamic> updates = {
+          'status': status,
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        };
+
+        if (status == 'rejected') {
+          updates['rejectionReason'] =
+              rejectionReason ?? '';
+
+          updates['rejectedAt'] =
+              FieldValue.serverTimestamp();
+        }
+
+        if (status == 'completed') {
+          updates['completedAt'] =
+              FieldValue.serverTimestamp();
+
+          if (paymentStatus == 'paid') {
+            updates['payoutStatus'] =
+                'eligible';
+
+            updates['payoutEligibleAt'] =
+                FieldValue.serverTimestamp();
+          }
+        }
+
+        transaction.update(
+          orderReference,
+          updates,
+        );
+
+        if (customerId.isNotEmpty) {
+          final notificationReference =
+              FirebaseFirestore.instance
+                  .collection(
+                    'notifications',
+                  )
+                  .doc();
+
+          final String readableStatus =
+              status.replaceAll('_', ' ');
+
+          transaction.set(
+            notificationReference,
+            {
+              'userId': customerId,
+              'orderId': orderId,
+              'type': 'order_status',
+              'title': 'Order update',
+              'message':
+                  'Your order is now '
+                  '$readableStatus.',
+              'status': status,
+              'isRead': false,
+              'createdAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        }
       },
     );
+  } catch (error) {
+    if (!context.mounted) {
+      return;
+    }
 
-    controller.dispose();
-
-    if (reason == null || reason.isEmpty) {
-  return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          'Order could not be updated: '
+          '$error',
+        ),
+      ),
+    );
+  }
 }
 
-if (!context.mounted) {
-  return;
+String _capitalise(String value) {
+  if (value.isEmpty) {
+    return value;
+  }
+
+  return '${value[0].toUpperCase()}'
+      '${value.substring(1)}';
 }
-
-try {
-      await _updateStatus(
-        context: context,
-        orderId: orderId,
-        status: 'rejected',
-        rejectionReason: reason,
-      );
-
-      if (!context.mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text('Order rejected'),
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Order could not be rejected: '
-            '$error',
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _updateStatus({
-    required BuildContext context,
-    required String orderId,
-    required String status,
-    String? rejectionReason,
-  }) async {
-    try {
-      final orderReference =
-          FirebaseFirestore.instance
-              .collection('orders')
-              .doc(orderId);
-
-      await FirebaseFirestore.instance
-          .runTransaction(
-        (transaction) async {
-          final orderSnapshot =
-              await transaction.get(
-            orderReference,
-          );
-
-          final orderData =
-              orderSnapshot.data() ??
-                  <String, dynamic>{};
-
-          final String customerId =
-              orderData['customerId']
-                      ?.toString() ??
-                  '';
-
-          final Map<String, dynamic> updates = {
-            'status': status,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          };
-
-          if (status == 'rejected') {
-            updates['rejectionReason'] =
-                rejectionReason ?? '';
-
-            updates['rejectedAt'] =
-                FieldValue.serverTimestamp();
-          }
-
-          if (status == 'completed') {
-            updates['completedAt'] =
-                FieldValue.serverTimestamp();
-          }
-
-          transaction.update(
-            orderReference,
-            updates,
-          );
-
-          if (customerId.isNotEmpty) {
-            final notificationReference =
-                FirebaseFirestore.instance
-                    .collection(
-                      'notifications',
-                    )
-                    .doc();
-
-            final String readableStatus =
-                status.replaceAll('_', ' ');
-
-            transaction.set(
-              notificationReference,
-              {
-                'userId': customerId,
-                'orderId': orderId,
-                'type': 'order_status',
-                'title': 'Order update',
-                'message':
-                    'Your order is now '
-                    '$readableStatus.',
-                'status': status,
-                'isRead': false,
-                'createdAt':
-                    FieldValue.serverTimestamp(),
-              },
-            );
-          }
-        },
-      );
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Order could not be updated: '
-            '$error',
-          ),
-        ),
-      );
-    }
-  }
-
-  String _capitalise(String value) {
-    if (value.isEmpty) {
-      return value;
-    }
-
-    return '${value[0].toUpperCase()}'
-        '${value.substring(1)}';
-  }
 }

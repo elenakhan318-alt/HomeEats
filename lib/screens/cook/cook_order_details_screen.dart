@@ -729,11 +729,24 @@ class CookOrderDetailsScreen extends StatelessWidget {
       final batch =
           FirebaseFirestore.instance.batch();
 
-      batch.update(orderReference, {
-        'status': status,
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      });
+      final orderUpdates = <String, dynamic>{
+  'status': status,
+  'updatedAt': FieldValue.serverTimestamp(),
+};
+
+if (
+  status == 'completed' &&
+  orderData['paymentStatus'] == 'paid'
+) {
+  orderUpdates['payoutStatus'] = 'eligible';
+  orderUpdates['payoutEligibleAt'] =
+      FieldValue.serverTimestamp();
+}
+
+batch.update(
+  orderReference,
+  orderUpdates,
+);
 
       if (customerId.isNotEmpty) {
         final notificationReference =

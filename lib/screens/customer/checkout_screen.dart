@@ -36,7 +36,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _notesController =
       TextEditingController();
 
-  static const double _deliveryFee = 2.50;
+  double _deliveryFee = 0;
+  double? _deliveryDistanceMiles;
+  bool _deliveryChecked = false;
+  bool _deliveryWithinRange = true;
+  bool _isCheckingDelivery = false;
 
   String _fulfilmentType = 'delivery';
   bool _isSubmitting = false;
@@ -107,7 +111,101 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _loadCurrentUserDetails();
   }
 
-  void _setInitialFulfilmentType() {
+  Future<void> _calculateDeliveryFee() async {
+    if (!_isDelivery) {
+      setState(() {
+        _deliveryFee = 0;
+        _deliveryDistanceMiles = null;
+        _deliveryChecked = false;
+        _deliveryWithinRange = true;
+      });
+      return;
+    }
+
+    final String address =
+        _addressController.text.trim();
+
+    if (address.isEmpty) {
+      return;
+    }
+
+    final Set<String> cookIds =
+        _getCookIds();
+
+    if (cookIds.isEmpty) {
+      return;
+    }
+
+    final String cookId =
+        cookIds.first;
+
+    setState(() {
+      _isCheckingDelivery = true;
+    });
+
+    try {
+      final FirebaseFunctions functions =
+          FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      );
+
+      final HttpsCallable callable =
+          functions.httpsCallable(
+        'calculateDeliveryFee',
+      );
+
+      final HttpsCallableResult<dynamic> result =
+          await callable.call({
+        'cookId': cookId,
+        'customerAddress': address,
+      });
+
+      final dynamic data = result.data;
+
+      final bool available =
+          data['deliveryAvailable'] == true;
+
+      final double fee =
+          (data['deliveryFee'] as num?)
+                  ?.toDouble() ??
+              0;
+
+      final double? distance =
+          (data['distanceMiles'] as num?)
+              ?.toDouble();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _deliveryFee = fee;
+        _deliveryDistanceMiles = distance;
+        _deliveryChecked = true;
+        _deliveryWithinRange = available;
+      });
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.message ??
+                'Delivery distance could not be calculated.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingDelivery = false;
+        });
+      }
+    }
+  }
+    void _setInitialFulfilmentType() {
     final String requestedType =
         widget.initialFulfilmentType;
 
@@ -258,8 +356,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     final String successUrl = kIsWeb
-    ? '${Uri.base.origin}/#/payment-success/$orderId'
-    : 'homeeats://payment-success/$orderId';
+        ? '${Uri.base.origin}/#/payment-success/$orderId'
+        : 'homeeats://payment-success/$orderId';
 
     final String cancelUrl = kIsWeb
         ? '${Uri.base.origin}/#/checkout'
@@ -281,17 +379,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final bool opened;
 
-if (kIsWeb) {
-  opened = await launchUrl(
-    Uri.parse(checkoutUrl),
-    webOnlyWindowName: '_self',
-  );
-} else {
-  opened = await launchUrl(
-    Uri.parse(checkoutUrl),
-    mode: LaunchMode.externalApplication,
-  );
-}
+    if (kIsWeb) {
+      opened = await launchUrl(
+        Uri.parse(checkoutUrl),
+        webOnlyWindowName: '_self',
+      );
+    } else {
+      opened = await launchUrl(
+        Uri.parse(checkoutUrl),
+        mode: LaunchMode.externalApplication,
+      );
+    }
 
     if (!opened) {
       throw Exception(
@@ -299,7 +397,8 @@ if (kIsWeb) {
       );
     }
   }
-    Future<bool> _validateBasketStock() async {
+
+  Future<bool> _validateBasketStock() async {
     for (final item in basketData.basketItems) {
       final String mealId =
           item['mealId']?.toString() ?? '';
@@ -373,8 +472,7 @@ if (kIsWeb) {
 
     return true;
   }
-
-  Future<void> _placeOrder() async {
+    Future<void> _placeOrder() async {
     FocusScope.of(context).unfocus();
 
     if (basketData.basketItems.isEmpty) {
@@ -392,6 +490,43 @@ if (kIsWeb) {
       return;
     }
 
+    if (_isDelivery) {
+      await _calculateDeliveryFee();
+
+      if (!_deliveryChecked) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please check your delivery address and try again.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!_deliveryWithinRange) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This address is outside the cook’s 3-mile delivery area. '
+              'Please choose Collection or use a closer delivery address.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+if (!mounted) {
+  return;
+}
     final User? user =
         FirebaseAuth.instance.currentUser;
 
@@ -450,6 +585,10 @@ if (kIsWeb) {
         'subtotal': _subtotal,
         'deliveryFee':
             _currentDeliveryFee,
+        'deliveryDistanceMiles':
+            _isDelivery
+                ? _deliveryDistanceMiles
+                : null,
         'total': _total,
         'status': 'awaiting_payment',
         'paymentStatus':
@@ -623,7 +762,8 @@ if (kIsWeb) {
           ),
     );
   }
-    Widget _buildCustomerDetailsCard() {
+
+  Widget _buildCustomerDetailsCard() {
     return Container(
       padding: const EdgeInsets.all(
         AppSpacing.regular,
@@ -673,8 +813,7 @@ if (kIsWeb) {
       ),
     );
   }
-
-  Widget _buildFulfilmentSelector() {
+    Widget _buildFulfilmentSelector() {
     return Row(
       children: [
         Expanded(
@@ -729,9 +868,13 @@ if (kIsWeb) {
                     _fulfilmentType =
                         value;
 
+                    _deliveryFee = 0;
+                    _deliveryDistanceMiles = null;
+                    _deliveryChecked = false;
+                    _deliveryWithinRange = true;
+
                     if (!_isDelivery) {
-                      _addressController
-                          .clear();
+                      _addressController.clear();
                     }
                   });
                 },
@@ -844,33 +987,136 @@ if (kIsWeb) {
           AppRadius.card,
         ),
       ),
-      child: TextFormField(
-        controller:
-            _addressController,
-        validator:
-            _validateAddress,
-        textCapitalization:
-            TextCapitalization.sentences,
-        keyboardType:
-            TextInputType.streetAddress,
-        minLines: 2,
-        maxLines: 4,
-        decoration:
-            const InputDecoration(
-          labelText:
-              'Delivery address',
-          alignLabelWithHint: true,
-          prefixIcon: Icon(
-            Icons.location_on_outlined,
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller:
+                _addressController,
+            validator:
+                _validateAddress,
+            textCapitalization:
+                TextCapitalization.sentences,
+            keyboardType:
+                TextInputType.streetAddress,
+            minLines: 2,
+            maxLines: 4,
+            onChanged: (_) {
+              if (_deliveryChecked ||
+                  _deliveryDistanceMiles != null ||
+                  _deliveryFee != 0) {
+                setState(() {
+                  _deliveryFee = 0;
+                  _deliveryDistanceMiles = null;
+                  _deliveryChecked = false;
+                  _deliveryWithinRange = true;
+                });
+              }
+            },
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Delivery address',
+              alignLabelWithHint: true,
+              prefixIcon: Icon(
+                Icons.location_on_outlined,
+              ),
+              hintText:
+                  'House number, street and postcode',
+            ),
           ),
-          hintText:
-              'House number, street and postcode',
-        ),
+          const SizedBox(
+            height: AppSpacing.regular,
+          ),
+          OutlinedButton.icon(
+            onPressed:
+                _isCheckingDelivery ||
+                        _isSubmitting
+                    ? null
+                    : _calculateDeliveryFee,
+            icon: _isCheckingDelivery
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child:
+                        CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(
+                    Icons.route_rounded,
+                  ),
+            label: Text(
+              _isCheckingDelivery
+                  ? 'Checking delivery...'
+                  : 'Check delivery',
+            ),
+          ),
+          if (_deliveryChecked) ...[
+            const SizedBox(
+              height: AppSpacing.regular,
+            ),
+            Container(
+              padding: const EdgeInsets.all(
+                AppSpacing.regular,
+              ),
+              decoration: BoxDecoration(
+                color: _deliveryWithinRange
+                    ? AppColors.primaryLight
+                    : Colors.red.shade50,
+                borderRadius:
+                    BorderRadius.circular(
+                  AppRadius.medium,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _deliveryWithinRange
+                        ? Icons
+                            .check_circle_outline_rounded
+                        : Icons
+                            .error_outline_rounded,
+                    color: _deliveryWithinRange
+                        ? AppColors.primary
+                        : Colors.red.shade700,
+                  ),
+                  const SizedBox(
+                    width: AppSpacing.small,
+                  ),
+                  Expanded(
+                    child: Text(
+                      _deliveryWithinRange
+                          ? 'Delivery available'
+                              '${_deliveryDistanceMiles == null ? '' : ' • ${_deliveryDistanceMiles!.toStringAsFixed(2)} miles'}'
+                              ' • £${_deliveryFee.toStringAsFixed(2)}'
+                          : 'This address is outside the cook’s 3-mile delivery area. '
+                              'Please choose Collection or use a closer delivery address.',
+                      style: TextStyle(
+                        color:
+                            _deliveryWithinRange
+                                ? AppColors
+                                    .textPrimary
+                                : Colors
+                                    .red
+                                    .shade800,
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
-
-  Widget _buildNotesField() {
+    Widget _buildNotesField() {
     return Container(
       padding: const EdgeInsets.all(
         AppSpacing.regular,
@@ -1046,7 +1292,8 @@ if (kIsWeb) {
       ),
     );
   }
-    Widget _buildOrderSummary() {
+
+  Widget _buildOrderSummary() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(
@@ -1073,7 +1320,13 @@ if (kIsWeb) {
                 ? 'Delivery fee'
                 : 'Collection',
             price: _isDelivery
-                ? '£${_currentDeliveryFee.toStringAsFixed(2)}'
+                ? (_isCheckingDelivery
+                    ? 'Checking...'
+                    : !_deliveryChecked
+                        ? 'Check address'
+                        : _deliveryWithinRange
+                            ? '£${_currentDeliveryFee.toStringAsFixed(2)}'
+                            : 'Unavailable')
                 : 'Free',
           ),
           const Padding(
@@ -1146,8 +1399,12 @@ if (kIsWeb) {
           height: 56,
           child: FilledButton(
             onPressed:
-                _isSubmitting ? null : _placeOrder,
-            child: _isSubmitting
+                _isSubmitting ||
+                        _isCheckingDelivery
+                    ? null
+                    : _placeOrder,
+            child: _isSubmitting ||
+                    _isCheckingDelivery
                 ? const SizedBox(
                     width: 24,
                     height: 24,
@@ -1158,7 +1415,11 @@ if (kIsWeb) {
                     ),
                   )
                 : Text(
-                    'Continue to Payment  •  £${_total.toStringAsFixed(2)}',
+                    _isDelivery && !_deliveryChecked
+                        ? 'Check delivery address to continue'
+                        : _isDelivery && !_deliveryWithinRange
+                            ? 'Delivery unavailable'
+                            : 'Continue to Payment  •  £${_total.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontWeight:
                           FontWeight.w800,

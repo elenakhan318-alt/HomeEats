@@ -7,7 +7,12 @@ import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 
 class AddTodayMealScreen extends StatefulWidget {
-  const AddTodayMealScreen({super.key});
+  const AddTodayMealScreen({
+    super.key,
+    this.previousMealData,
+  });
+
+  final Map<String, dynamic>? previousMealData;
 
   @override
   State<AddTodayMealScreen> createState() =>
@@ -48,7 +53,72 @@ final Set<int> _selectedRepeatDays = {};
     'African',
     'British',
   ];
+@override
+void initState() {
+  super.initState();
 
+  final previousMeal = widget.previousMealData;
+
+  if (previousMeal == null) {
+    return;
+  }
+
+  _mealNameController.text =
+      previousMeal['mealName']?.toString() ?? '';
+
+  _priceController.text =
+      previousMeal['price']?.toString() ?? '';
+
+  _ingredientsController.text =
+      previousMeal['ingredients']?.toString() ?? '';
+
+  _allergensController.text =
+      previousMeal['allergens']?.toString() ?? '';
+
+  final cuisine =
+      previousMeal['cuisine']?.toString();
+
+  if (cuisine != null &&
+      _cuisines.contains(cuisine)) {
+    _selectedCuisine = cuisine;
+  }
+
+  _deliveryAvailable =
+      previousMeal['deliveryAvailable'] == true;
+
+  _collectionAvailable =
+      previousMeal['collectionAvailable'] == true;
+
+  final readyTime =
+      previousMeal['readyTime'];
+
+  if (readyTime is Map) {
+    final hour = readyTime['hour'];
+    final minute = readyTime['minute'];
+
+    if (hour is int && minute is int) {
+      _readyTime = TimeOfDay(
+        hour: hour,
+        minute: minute,
+      );
+    }
+  }
+
+  final cutOffTime =
+      previousMeal['cutOffTime'];
+
+  if (cutOffTime is Map) {
+    final hour = cutOffTime['hour'];
+    final minute = cutOffTime['minute'];
+
+    if (hour is int && minute is int) {
+      _cutOffTime = TimeOfDay(
+        hour: hour,
+        minute: minute,
+      );
+    }
+  }
+}
   @override
   void dispose() {
     _mealNameController.dispose();
