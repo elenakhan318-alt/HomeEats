@@ -629,12 +629,6 @@ Future<void> _updateStatus({
                     ?.toString() ??
                 '';
 
-        final String paymentStatus =
-            orderData['paymentStatus']
-                    ?.toString()
-                    .trim()
-                    .toLowerCase() ??
-                '';
 
         final Map<String, dynamic> updates = {
           'status': status,
@@ -651,17 +645,9 @@ Future<void> _updateStatus({
         }
 
         if (status == 'completed') {
-          updates['completedAt'] =
-              FieldValue.serverTimestamp();
-
-          if (paymentStatus == 'paid') {
-            updates['payoutStatus'] =
-                'eligible';
-
-            updates['payoutEligibleAt'] =
-                FieldValue.serverTimestamp();
-          }
-        }
+  updates['completedAt'] =
+      FieldValue.serverTimestamp();
+}
 
         transaction.update(
           orderReference,

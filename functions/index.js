@@ -9,6 +9,10 @@ const {
 } = require("firebase-functions/v2/https");
 
 const {
+  onSchedule,
+} = require("firebase-functions/v2/scheduler");
+
+const {
   defineSecret,
 } = require("firebase-functions/params");
 
@@ -1085,7 +1089,15 @@ exports.transferCompletedOrderPayout =
             .trim()
             .toLowerCase();
 
-        if (payoutMode === "test") {
+        /*
+ * Live payouts are now handled by
+ * the weekly payout process.
+ *
+ * This old immediate payout trigger
+ * remains disabled unless explicitly
+ * marked as live_immediate.
+ */
+        if (payoutMode !== "live_immediate") {
           return;
         }
 
@@ -1472,6 +1484,461 @@ exports.transferCompletedOrderTestPayout =
             "Cook test payout transferred:",
             event.params.orderId,
             transfer.id,
+        );
+      },
+  );
+/*
+ * Mark a live paid completed order as
+ * eligible for the weekly cook payout.
+ */
+exports.markCompletedOrderPayoutEligible =
+  onDocumentWritten(
+      {
+        document: "orders/{orderId}",
+        region: "europe-west1",
+      },
+      async (event) => {
+        const beforeSnapshot =
+          event.data.before;
+
+        const afterSnapshot =
+          event.data.after;
+
+        if (!afterSnapshot.exists) {
+          return;
+        }
+
+        const beforeData =
+          beforeSnapshot.exists ?
+            beforeSnapshot.data() :
+            {};
+
+        const afterData =
+          afterSnapshot.data() || {};
+
+        const oldStatus =
+          String(
+              beforeData.status || "",
+          )
+              .trim()
+              .toLowerCase();
+
+        const newStatus =
+          String(
+              afterData.status || "",
+          )
+              .trim()
+              .toLowerCase();
+
+        const paymentStatus =
+          String(
+              afterData.paymentStatus || "",
+          )
+              .trim()
+              .toLowerCase();
+
+        const payoutMode =
+          String(
+              afterData.payoutMode || "",
+          )
+              .trim()
+              .toLowerCase();
+
+        if (
+          newStatus !== "completed" ||
+          oldStatus === "completed"
+        ) {
+          return;
+        }
+
+        if (paymentStatus !== "paid") {
+          return;
+        }
+
+        if (
+          payoutMode === "test" ||
+          payoutMode === "live_immediate"
+        ) {
+          return;
+        }
+
+        if (
+          afterData.stripeTransferId ||
+          afterData.payoutStatus ===
+            "transferred"
+        ) {
+          return;
+        }
+
+        await afterSnapshot.ref.set(
+            {
+              payoutStatus: "eligible",
+
+              payoutEligibleAt:
+                FieldValue
+                    .serverTimestamp(),
+
+              updatedAt:
+                FieldValue
+                    .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+        );
+
+        console.log(
+            "Order marked payout eligible:",
+            event.params.orderId,
+        );
+      },
+  );
+/*
+ * Weekly live cook payout process.
+ *
+ * Runs every Monday at 9:00 AM UK time.
+ * Transfers earnings for eligible completed
+ * paid orders to each cook's live Stripe
+ * connected account.
+ */
+exports.processWeeklyCookPayouts =
+  onSchedule(
+      {
+        schedule: "0 9 * * 1",
+        timeZone: "Europe/London",
+        region: "europe-west1",
+        secrets: [stripeSecretKey],
+      },
+      async () => {
+        const db = getFirestore();
+
+        const stripe =
+          require("stripe")(
+              stripeSecretKey.value(),
+          );
+
+        const eligibleSnapshot =
+          await db
+              .collection("orders")
+              .where(
+                  "payoutStatus",
+                  "==",
+                  "eligible",
+              )
+              .get();
+
+        console.log(
+            "Weekly payout run started.",
+            "Eligible orders:",
+            eligibleSnapshot.size,
+        );
+
+        let transferredCount = 0;
+        let skippedCount = 0;
+        let failedCount = 0;
+
+        for (
+          const orderDocument of
+          eligibleSnapshot.docs
+        ) {
+          const orderId =
+            orderDocument.id;
+
+          const orderData =
+            orderDocument.data() || {};
+
+          const status =
+            String(
+                orderData.status || "",
+            )
+                .trim()
+                .toLowerCase();
+
+          const paymentStatus =
+            String(
+                orderData.paymentStatus || "",
+            )
+                .trim()
+                .toLowerCase();
+
+          const payoutMode =
+            String(
+                orderData.payoutMode || "",
+            )
+                .trim()
+                .toLowerCase();
+
+          /*
+           * Never allow sandbox orders or
+           * old immediate-payout orders into
+           * the weekly live payout process.
+           */
+          if (
+            payoutMode === "test" ||
+            payoutMode === "live_immediate"
+          ) {
+            skippedCount++;
+            continue;
+          }
+
+          if (
+            status !== "completed" ||
+            paymentStatus !== "paid"
+          ) {
+            skippedCount++;
+            continue;
+          }
+
+          /*
+           * Existing transfer means this
+           * order has already been paid.
+           */
+          if (
+            orderData.stripeTransferId
+          ) {
+            skippedCount++;
+            continue;
+          }
+
+          const cookIds =
+            Array.isArray(
+                orderData.cookIds,
+            ) ?
+              orderData.cookIds :
+              [];
+
+          if (cookIds.length !== 1) {
+            console.error(
+                "Weekly payout skipped:",
+                orderId,
+                "Order must contain exactly one cook.",
+            );
+
+            failedCount++;
+            continue;
+          }
+
+          const cookId =
+            String(
+                cookIds[0] || "",
+            ).trim();
+
+          if (!cookId) {
+            console.error(
+                "Weekly payout skipped:",
+                orderId,
+                "Cook ID is missing.",
+            );
+
+            failedCount++;
+            continue;
+          }
+
+          const cookEarningsPence =
+            Number(
+                orderData
+                    .cookGrossEarningsPence ||
+                  0,
+            );
+
+          const totalPaidPence =
+            Number(
+                orderData.totalPaidPence ||
+                  0,
+            );
+
+          const commissionPence =
+            Number(
+                orderData
+                    .platformCommissionPence ||
+                  0,
+            );
+
+          /*
+           * Safety-check the amount before
+           * any real Stripe transfer occurs.
+           */
+          if (
+            !Number.isInteger(
+                cookEarningsPence,
+            ) ||
+            cookEarningsPence <= 0 ||
+            !Number.isInteger(
+                totalPaidPence,
+            ) ||
+            totalPaidPence <= 0 ||
+            !Number.isInteger(
+                commissionPence,
+            ) ||
+            commissionPence < 0 ||
+            cookEarningsPence !==
+              totalPaidPence -
+                commissionPence
+          ) {
+            console.error(
+                "Weekly payout amount validation failed:",
+                orderId,
+            );
+
+            await orderDocument.ref.set(
+                {
+                  payoutStatus:
+                    "failed",
+
+                  payoutError:
+                    "Payout amount validation failed.",
+
+                  payoutUpdatedAt:
+                    FieldValue
+                        .serverTimestamp(),
+                },
+                {
+                  merge: true,
+                },
+            );
+
+            failedCount++;
+            continue;
+          }
+
+          try {
+            const cookSnapshot =
+              await db
+                  .collection("users")
+                  .doc(cookId)
+                  .get();
+
+            if (!cookSnapshot.exists) {
+              throw new Error(
+                  `Cook ${cookId} does not exist.`,
+              );
+            }
+
+            const cookData =
+              cookSnapshot.data() || {};
+
+            const stripeAccountId =
+              String(
+                  cookData
+                      .stripeAccountId ||
+                    "",
+              ).trim();
+
+            if (!stripeAccountId) {
+              throw new Error(
+                  "Cook Stripe account ID is missing.",
+              );
+            }
+
+            const transfer =
+              await stripe.transfers.create(
+                  {
+                    amount:
+                      cookEarningsPence,
+
+                    currency:
+                      String(
+                          orderData.currency ||
+                            "gbp",
+                      )
+                          .trim()
+                          .toLowerCase(),
+
+                    destination:
+                      stripeAccountId,
+
+                    metadata: {
+                      orderId,
+                      cookId,
+                      payoutType:
+                        "weekly",
+                    },
+                  },
+                  {
+                    idempotencyKey:
+                      `weekly_order_payout_${orderId}`,
+                  },
+              );
+
+            await orderDocument.ref.set(
+                {
+                  payoutStatus:
+                    "transferred",
+
+                  payoutType:
+                    "weekly",
+
+                  stripeTransferId:
+                    transfer.id,
+
+                  payoutTransferredAt:
+                    FieldValue
+                        .serverTimestamp(),
+
+                  payoutError:
+                    FieldValue
+                        .delete(),
+
+                  updatedAt:
+                    FieldValue
+                        .serverTimestamp(),
+                },
+                {
+                  merge: true,
+                },
+            );
+
+            transferredCount++;
+
+            console.log(
+                "Weekly cook payout transferred:",
+                orderId,
+                cookId,
+                cookEarningsPence,
+                transfer.id,
+            );
+          } catch (error) {
+            failedCount++;
+
+            console.error(
+                "Weekly cook payout failed:",
+                orderId,
+                error,
+            );
+
+            await orderDocument.ref.set(
+                {
+                  payoutStatus:
+                    "failed",
+
+                  payoutError:
+                    String(
+                        error.message ||
+                          error,
+                    ),
+
+                  payoutUpdatedAt:
+                    FieldValue
+                        .serverTimestamp(),
+
+                  updatedAt:
+                    FieldValue
+                        .serverTimestamp(),
+                },
+                {
+                  merge: true,
+                },
+            );
+          }
+        }
+
+        console.log(
+            "Weekly payout run finished.",
+            {
+              transferredCount,
+              skippedCount,
+              failedCount,
+            },
         );
       },
   );
