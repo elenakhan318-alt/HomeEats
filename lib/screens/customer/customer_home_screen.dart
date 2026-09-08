@@ -23,6 +23,7 @@ class _CustomerHomeScreenState
 
   bool _isDeliverySelected = true;
   String? _selectedCuisine;
+  String? _selectedFoodCategory;
   
 
   void _showTemporaryMessage(String message) {
@@ -56,23 +57,27 @@ Widget build(BuildContext context) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTopBar(),
-              const SizedBox(height: AppSpacing.large),
-              _buildLocation(),
-              const SizedBox(height: AppSpacing.extraLarge),
-              _buildGreeting(),
-              const SizedBox(height: AppSpacing.large),
-              _buildOrderTypeSelector(),
-              const SizedBox(height: AppSpacing.regular),
-             _buildSearchBar(),
+_buildTopBar(),
 
 const SizedBox(height: AppSpacing.large),
 
-_buildCuisineSection(),
+_buildGreeting(),
+
+const SizedBox(height: AppSpacing.large),
+
+_buildOrderTypeSelector(),
+
+const SizedBox(height: AppSpacing.regular),
+
+_buildSearchBar(),
 
 const SizedBox(height: AppSpacing.large),
 
 _buildPromotionBanner(),
+
+const SizedBox(height: AppSpacing.large),
+
+_buildCuisineSection(),
               const SizedBox(height: AppSpacing.section),
               _buildLiveMeals(),
               const SizedBox(height: AppSpacing.large),
@@ -91,21 +96,60 @@ void dispose() {
   _scrollController.dispose();
   super.dispose();
 }
-  Widget _buildTopBar() {
+ Widget _buildTopBar() {
   return Padding(
     padding: const EdgeInsets.only(
       top: AppSpacing.small,
     ),
     child: Row(
       children: [
-   Text(
-  'Home',
-  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
-      ),
-),
-        const Spacer(),
+        const Icon(
+          Icons.location_on_rounded,
+          color: AppColors.primary,
+          size: 28,
+        ),
+        const SizedBox(width: 8),
+
+        Expanded(
+          child: InkWell(
+            onTap: () {
+              _showTemporaryMessage(
+                'Location selection will open here.',
+              );
+            },
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Delivering to',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Birmingham',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 22,
+                      color: AppColors.textPrimary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
         IconButton(
           tooltip: 'Notifications',
           onPressed: () {
@@ -115,8 +159,10 @@ void dispose() {
           },
           icon: const Icon(
             Icons.notifications_none_rounded,
+            size: 27,
           ),
         ),
+
         IconButton(
           tooltip: 'Sign out',
           onPressed: () async {
@@ -127,8 +173,7 @@ void dispose() {
                 return AlertDialog(
                   title: const Text('Sign out'),
                   content: const Text(
-                    'Are you sure you want to '
-                    'sign out of HomeEats?',
+                    'Are you sure you want to sign out of HomeEats?',
                   ),
                   actions: [
                     TextButton(
@@ -154,23 +199,25 @@ void dispose() {
               },
             );
 
-          if (shouldSignOut == true) {
-  await FirebaseAuth.instance.signOut();
+            if (shouldSignOut == true) {
+              await FirebaseAuth.instance.signOut();
 
-  if (!mounted) {
-    return;
-  }
+              if (!mounted) {
+                return;
+              }
 
-  Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(
-      builder: (context) => const WelcomeScreen(),
-    ),
-    (route) => false,
-  );
-}
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const WelcomeScreen(),
+                ),
+                (route) => false,
+              );
+            }
           },
           icon: const Icon(
             Icons.logout_rounded,
+            size: 27,
           ),
         ),
       ],
@@ -228,8 +275,7 @@ void dispose() {
       ),
     );
   }
-
-  Widget _buildGreeting() {
+Widget _buildGreeting() {
   final hour = DateTime.now().hour;
   final user = FirebaseAuth.instance.currentUser;
 
@@ -252,30 +298,40 @@ void dispose() {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      Image.asset(
+        'assets/images/homeeats_header_art.png',
+        width: double.infinity,
+        fit: BoxFit.contain,
+      ),
+
+      const SizedBox(height: 8),
+
       Text(
         greetingText,
         style: Theme.of(context)
             .textTheme
             .headlineSmall
             ?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w800,
+              color: AppColors.secondary,
+              fontSize: 27,
+              height: 1.08,
+              fontWeight: FontWeight.w900,
             ),
       ),
-      const SizedBox(
-        height: AppSpacing.small,
-      ),
+
+      const SizedBox(height: 7),
+
       const Text(
-        'What homemade meal are you craving today?',
+        'What homemade food are you craving today?',
         style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 15,
+          height: 1.4,
         ),
       ),
     ],
   );
 }
-
   Widget _buildOrderTypeSelector() {
     return Container(
       padding: const EdgeInsets.all(5),
@@ -377,80 +433,15 @@ Widget _buildSearchBar() {
 
 
   Widget _buildPromotionBanner() {
-    return Container(
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(AppRadius.card),
+    child: Image.asset(
+      'assets/images/homeeats_food_banner.png',
       width: double.infinity,
-      height: 235,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFC85E32),
-            Color(0xFFEDA16C),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -20,
-            bottom: -10,
-            child: Icon(
-              Icons.restaurant_rounded,
-              size: 180,
-              color: Colors.white.withValues(alpha: 0.14),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.large),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.favorite_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
-                const Spacer(),
-                const Text(
-  'Homemade food\nyou can trust.',
-  style: TextStyle(
-    color: Colors.white,
-    fontSize: 25,
-    height: 1.08,
-    fontWeight: FontWeight.w900,
-  ),
-),
-                const SizedBox(height: AppSpacing.small),
-                const Text(
-  'Freshly prepared by verified local cooks.',
-  style: TextStyle(
-    color: Colors.white,
-    fontSize: 13,
-  ),
-),
-                const SizedBox(height: AppSpacing.small),
-                FilledButton(
-                  onPressed: () {
-                    _showTemporaryMessage(
-                      'Available meals are shown below.',
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Browse Meals'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+      fit: BoxFit.contain,
+    ),
+  );
+}
   Widget _buildLiveMeals() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,10 +529,19 @@ final matchesSelectedCuisine =
     _selectedCuisine == null ||
     mealCuisine == _selectedCuisine;
 
+final mealCategory =
+    data['category']?.toString().trim();
+
+final matchesSelectedFoodCategory =
+    _selectedFoodCategory == null ||
+    mealCategory == _selectedFoodCategory;
+
 return isToday &&
     remainingPortions > 0 &&
     matchesSelectedOrderType &&
-    matchesSelectedCuisine;
+    matchesSelectedCuisine &&
+    matchesSelectedFoodCategory;
+  
 }).toList() ??
     []; 
 
@@ -1144,6 +1144,7 @@ Widget _buildUpcomingMeals() {
         subtitle: 'See what local cooks are preparing next',
       ),
       const SizedBox(height: AppSpacing.regular),
+
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('meals')
@@ -1245,11 +1246,18 @@ Widget _buildUpcomingMeals() {
                         _selectedCuisine == null ||
                             mealCuisine ==
                                 _selectedCuisine;
+                                final mealCategory =
+    data['category']?.toString().trim();
+
+final matchesSelectedFoodCategory =
+    _selectedFoodCategory == null ||
+    mealCategory == _selectedFoodCategory;
 
                     return isFuture &&
-                        remainingPortions > 0 &&
-                        matchesSelectedOrderType &&
-                        matchesSelectedCuisine;
+    remainingPortions > 0 &&
+    matchesSelectedOrderType &&
+    matchesSelectedCuisine &&
+    matchesSelectedFoodCategory;
                   }).toList() ??
                   [];
 
@@ -1303,8 +1311,7 @@ Widget _buildUpcomingMeals() {
                 ),
                 if (index < meals.length - 1)
                   const SizedBox(
-                    height:
-                        AppSpacing.regular,
+                    height: AppSpacing.regular,
                   ),
               ],
             ],
@@ -1314,52 +1321,117 @@ Widget _buildUpcomingMeals() {
     ],
   );
 }
-  Widget _buildCuisineSection() {
-  const cuisines = [
-    ('🍽️', 'All'),
-    ('🍛', 'Pakistani'),
-    ('🍲', 'Indian'),
-    ('🌴', 'Caribbean'),
-    ('🌍', 'African'),
-    ('🍝', 'Italian'),
-    ('🥙', 'Middle Eastern'),
-    ('🫒', 'Mediterranean'),
-  ];
+Widget _buildCuisineSection() {
+  void selectCategory(String category) {
+    setState(() {
+      _selectedFoodCategory = category;
+    });
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _buildSectionHeading(
-        title: 'Browse by Cuisine',
-        subtitle: 'Discover authentic flavours near you',
-      ),
-      const SizedBox(height: AppSpacing.medium),
-      Wrap(
-        spacing: 9,
-        runSpacing: 10,
-        children: cuisines.map((cuisine) {
-          final isSelected =
-              cuisine.$2 == 'All'
-                  ? _selectedCuisine == null
-                  : _selectedCuisine == cuisine.$2;
+    _showTemporaryMessage(
+      'Showing $category available near you.',
+    );
+  }
 
-          return ChoiceChip(
-            avatar: Text(cuisine.$1),
-            label: Text(cuisine.$2),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                if (cuisine.$2 == 'All') {
-                  _selectedCuisine = null;
-                } else {
-                  _selectedCuisine = cuisine.$2;
-                }
-              });
-            },
-          );
-        }).toList(),
-      ),
-    ],
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(
+          AppRadius.large,
+        ),
+        child: AspectRatio(
+          aspectRatio: 1.5,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/images/homeeats_categories.png',
+                fit: BoxFit.contain,
+              ),
+
+              // MEALS
+              Positioned(
+                left: 0,
+                top: 0.13 * constraints.maxWidth / 1.5,
+                width: constraints.maxWidth * 0.33,
+                height: constraints.maxWidth / 1.5 * 0.40,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      selectCategory('Meals');
+                    },
+                  ),
+                ),
+              ),
+
+              // DESSERTS
+              Positioned(
+                left: constraints.maxWidth * 0.33,
+                top: 0.13 * constraints.maxWidth / 1.5,
+                width: constraints.maxWidth * 0.34,
+                height: constraints.maxWidth / 1.5 * 0.40,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      selectCategory('Desserts');
+                    },
+                  ),
+                ),
+              ),
+
+              // SNACKS & SIDES
+              Positioned(
+                right: 0,
+                top: 0.13 * constraints.maxWidth / 1.5,
+                width: constraints.maxWidth * 0.33,
+                height: constraints.maxWidth / 1.5 * 0.40,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      selectCategory('Snacks & Sides');
+                    },
+                  ),
+                ),
+              ),
+
+              // DRINKS
+              Positioned(
+                left: 0,
+                bottom: 0,
+                width: constraints.maxWidth * 0.50,
+                height: constraints.maxWidth / 1.5 * 0.43,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      selectCategory('Drinks');
+                    },
+                  ),
+                ),
+              ),
+
+              // OTHER FOODS
+              Positioned(
+                right: 0,
+                bottom: 0,
+                width: constraints.maxWidth * 0.50,
+                height: constraints.maxWidth / 1.5 * 0.43,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      selectCategory('Other Foods');
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }
   Widget _buildCookSpotlight() {

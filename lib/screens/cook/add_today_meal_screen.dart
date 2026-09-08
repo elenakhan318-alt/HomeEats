@@ -43,6 +43,16 @@ final Set<int> _selectedRepeatDays = {};
 
   String _selectedCuisine = 'Pakistani';
 
+  String? _selectedFoodCategory;
+
+final List<String> _foodCategories = [
+  'Meals',
+  'Desserts',
+  'Snacks & Sides',
+  'Drinks',
+  'Other Foods',
+];
+
   final List<String> _cuisines = const [
     'Pakistani',
     'Caribbean',
@@ -414,6 +424,7 @@ void initState() {
             'mealName':
                 _mealNameController.text.trim(),
             'cuisine': _selectedCuisine,
+            'category': _selectedFoodCategory,
             'price': price,
             'portions': portions,
             'remainingPortions': portions,
@@ -660,6 +671,41 @@ void initState() {
                 ),
 
                 const SizedBox(height: AppSpacing.regular),
+                DropdownButtonFormField<String>(
+  initialValue: _selectedFoodCategory,
+  decoration: InputDecoration(
+    labelText: 'Food category',
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(
+        AppRadius.medium,
+      ),
+    ),
+  ),
+  items: _foodCategories.map((category) {
+    return DropdownMenuItem<String>(
+      value: category,
+      child: Text(category),
+    );
+  }).toList(),
+  validator: (value) {
+    if (value == null || value.isEmpty) {
+      return 'Please choose a food category.';
+    }
+
+    return null;
+  },
+  onChanged: _isPublishing
+      ? null
+      : (value) {
+          setState(() {
+            _selectedFoodCategory = value;
+          });
+        },
+),
+
+const SizedBox(height: AppSpacing.regular),
 
                 Row(
                   children: [
